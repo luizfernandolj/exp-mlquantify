@@ -244,6 +244,46 @@ Em `results/<run-id>/`:
 | `testes_estatisticos.csv` | Friedman por metodo e por medida, com os ranks medios |
 | `nemenyi/*.csv` | Nemenyi onde o Friedman acusou diferenca (alfa = 0,05) |
 | `visao_geral.csv` | contagem por biblioteca e situacao |
+| `amostras_descartadas.csv` | uma linha por combinacao com amostra descartada |
+
+### As respostas de Q1, Q2 e Q3
+
+A agregacao para em uma linha por metodo e biblioteca. Quem responde as tres
+perguntas em tabela de tamanho de texto e o `analyze_results.py`:
+
+```bash
+python aggregate_results.py --run-id final --out-dir ... --no-samples
+python analyze_results.py --run-id final --out-dir ...
+python analyze_results.py --run-id final --out-dir ... --erro mrae
+```
+
+Ele grava em `results/<run-id>/analise/`:
+
+| Arquivo | Conteudo |
+| --- | --- |
+| `respostas.md` | as respostas escritas, com os numeros no lugar |
+| `q1_equivalencia.*` | concordancia entre implementacoes, por biblioteca e tamanho |
+| `q1_discordancias.*` | os metodos que mais discordam -- as excecoes de Q1 |
+| `q1_testes.*` | resumo dos testes, por medida e conjunto de bibliotecas |
+| `q2_resumo.*` | razao de custo, com quartis |
+| `q3_resumo.*` | esforco de uso |
+| `figuras/*.png` | uma figura por pergunta |
+
+Cada tabela sai em `.csv`, `.md` e `.tex` (com `booktabs`, pronta para colar).
+
+Duas escolhas que mudam a leitura dos numeros:
+
+* **A unidade e o caso pareado.** Para Q1, um caso e um conjunto, um metodo e
+  um tamanho de amostra em que as duas bibliotecas estimaram; para Q2, um
+  conjunto e um metodo. Media sobre casos pareados nao depende de quais
+  conjuntos cada biblioteca conseguiu rodar.
+* **Os postos medios so se comparam dentro do mesmo conjunto de bibliotecas.**
+  Um metodo que existe em tres tem posto de 1 a 3, e um que existe em duas tem
+  posto de 1 a 2; por isso o `q1_testes.csv` separa as linhas por
+  `bibliotecas` em vez de misturar tudo em uma media por medida.
+
+Pode rodar com a execucao em andamento: o topo do `respostas.md` diz quantas
+combinacoes das planejadas entraram na conta.
 
 ### Colunas do `summary.csv`
 
@@ -791,6 +831,7 @@ clean_ledger.py     apaga medidas contaminadas por suspensao da maquina
 clean_pressure.py   apaga falhas de alocacao causadas por falta de RAM
 clean_invalid.py    apaga combinacoes reprovadas por amostra invalida isolada
 clean_schema.py     realinha parciais gravados antes de uma coluna nova existir
+analyze_results.py  responde Q1, Q2 e Q3 a partir das tabelas agregadas
 ```
 
 Os tres `clean_*.py` sao a mesma ideia: apagam do ledger so as combinacoes
