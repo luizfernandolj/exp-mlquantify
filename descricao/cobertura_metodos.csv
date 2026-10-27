@@ -1,0 +1,97 @@
+metodo,familia,biblioteca,grupo,classe,alias_de,binario_apenas,configuracoes_manuais,configuracoes_manuais_multiclasse,disponivel,motivo_indisponivel,observacoes
+DyS,casamento de distribuicoes,mlquantify,core,mlquantify.matching.DyS,,True,0,0,True,,
+DyS,casamento de distribuicoes,quapy,core,quapy.method.aggregative.DyS,,True,0,1,True,,
+EDy,casamento de distribuicoes,mlquantify,core,mlquantify.matching.EDy,,False,0,0,True,,
+EDy,casamento de distribuicoes,quantificationlib,core,quantificationlib.multiclass.energy.EDy,,False,1,1,True,,
+EDy,casamento de distribuicoes,quapy,core,quapy.method.aggregative.EDy,,False,0,0,True,,
+EDy,casamento de distribuicoes,qunfold,core,qunfold.EDy,,False,1,1,True,,
+GHDy,casamento de distribuicoes,mlquantify,core,mlquantify.matching.GHDy,,False,0,0,True,,
+GHDy,casamento de distribuicoes,qunfold,core,qunfold.HDy,,False,2,2,True,,a classe qunfold.HDy e a formulacao generalizada (GHDy)
+GKDEyML,casamento de distribuicoes,mlquantify,core,mlquantify.matching.GKDEyML,,False,0,0,True,,
+HDy,casamento de distribuicoes,mlquantify,core,mlquantify.matching.HDy,,True,0,0,True,,
+HDy,casamento de distribuicoes,quantificationlib,core,quantificationlib.multiclass.df.HDy,,False,1,1,True,,
+HDy,casamento de distribuicoes,quapy,core,quapy.method.aggregative.HDy,,True,0,1,True,,
+KDEyCS,casamento de distribuicoes,mlquantify,core,mlquantify.matching.KDEyCS,,False,0,0,True,,
+KDEyCS,casamento de distribuicoes,quapy,core,quapy.method.aggregative.KDEyCS,,False,0,0,True,,
+KDEyHD,casamento de distribuicoes,mlquantify,core,mlquantify.matching.KDEyHD,,False,0,0,True,,
+KDEyHD,casamento de distribuicoes,quapy,core,quapy.method.aggregative.KDEyHD,,False,0,0,True,,
+KDEyML,casamento de distribuicoes,mlquantify,core,mlquantify.matching.KDEyML,,False,0,0,True,,
+KDEyML,casamento de distribuicoes,quapy,core,quapy.method.aggregative.KDEyML,,False,0,0,True,,
+MMD,casamento de distribuicoes,mlquantify,core,mlquantify.matching.MMD_RKHS,,False,0,0,True,,
+MMD,casamento de distribuicoes,qunfold,core,qunfold.KMM,,False,0,0,True,,KMM com nucleo de energia
+SMM,casamento de distribuicoes,mlquantify,core,mlquantify.matching.SMM,,True,0,0,True,,
+SMM,casamento de distribuicoes,quapy,core,quapy.method.aggregative.SMM,,True,0,1,True,,
+SORD,casamento de distribuicoes,mlquantify,core,mlquantify.matching.SORD,,True,0,0,True,,
+SORD,casamento de distribuicoes,quantificationlib,core,quantificationlib.binary.emd.SORDy,,True,1,3,True,,
+CC,contagem,mlquantify,core,mlquantify.counting.CC,,False,0,0,True,,
+CC,contagem,quantificationlib,core,quantificationlib.baselines.cc.CC,,False,0,0,True,,
+CC,contagem,quapy,core,quapy.method.aggregative.CC,,False,0,0,True,,
+PCC,contagem,mlquantify,core,mlquantify.counting.PCC,,False,0,0,True,,
+PCC,contagem,quantificationlib,core,quantificationlib.baselines.cc.PCC,,False,0,0,True,,
+PCC,contagem,quapy,core,quapy.method.aggregative.PCC,,False,0,0,True,,
+ACC,contagem ajustada,mlquantify,core,mlquantify.counting.ACC,,True,0,0,True,,decomposicao um-contra-todos aplicada internamente
+ACC,contagem ajustada,quantificationlib,core,quantificationlib.baselines.ac.AC,,False,1,1,True,,na multiclasse a biblioteca resolve por minimizacao de distancia (GACC)
+ACC,contagem ajustada,quapy,core,quapy.method.aggregative.ACC,,False,0,0,True,,multiclasse nativa; equivale a GACC em problemas multiclasse
+FM,contagem ajustada,mlquantify,core,mlquantify.counting.FM,,False,0,0,True,,
+FM,contagem ajustada,quantificationlib,core,quantificationlib.multiclass.friedman.FriedmanME,,False,1,1,True,,
+GACC,contagem ajustada,mlquantify,core,mlquantify.counting.GACC,,False,0,0,True,,
+GACC,contagem ajustada,quantificationlib,core,quantificationlib.baselines.ac.AC,ACC,False,1,1,True,,na multiclasse a biblioteca resolve por minimizacao de distancia (GACC)
+GACC,contagem ajustada,quapy,core,quapy.method.aggregative.ACC,ACC,False,0,0,True,,multiclasse nativa; equivale a GACC em problemas multiclasse
+GACC,contagem ajustada,qunfold,core,qunfold.ACC,,False,1,1,True,,a classe qunfold.ACC e a formulacao generalizada (GACC)
+GPACC,contagem ajustada,mlquantify,core,mlquantify.counting.GPACC,,False,0,0,True,,
+GPACC,contagem ajustada,quantificationlib,core,quantificationlib.baselines.ac.PAC,PACC,False,1,1,True,,
+GPACC,contagem ajustada,quapy,core,quapy.method.aggregative.PACC,PACC,False,0,0,True,,
+GPACC,contagem ajustada,qunfold,core,qunfold.PACC,,False,1,1,True,,a classe qunfold.PACC e a formulacao generalizada (GPACC)
+PACC,contagem ajustada,mlquantify,core,mlquantify.counting.GPACC,GPACC,False,0,0,True,,
+PACC,contagem ajustada,quantificationlib,core,quantificationlib.baselines.ac.PAC,,False,1,1,True,,
+PACC,contagem ajustada,quapy,core,quapy.method.aggregative.PACC,,False,0,0,True,,
+Bootstrap,metaquantificacao,mlquantify,meta,mlquantify.meta.AggregativeBootstrap,,False,1,1,True,,exige um quantificador base (CC)
+Ensembles,metaquantificacao,mlquantify,meta,mlquantify.meta.EnsembleQ,,False,1,1,True,,exige um quantificador base (CC)
+Ensembles,metaquantificacao,quantificationlib,meta,quantificationlib.ensembles.eoq.EoQ,,False,5,5,False,"EoQ 0.1.2 devolve estimativa constante, independente da amostra de teste","exige quantificador base, gerador de sacolas, estrategia de combinacao e os dois estimadores do comite"
+Ensembles,metaquantificacao,quapy,meta,quapy.method.meta.Ensemble,,False,2,2,True,,exige quantificador base e tamanho do comite
+SVM(AE),minimizacao explicita da perda (ELM),mlquantify,elm,-,,False,0,0,False,nao publicado na mlquantify 0.5.1 (outro branch),
+SVM(AE),minimizacao explicita da perda (ELM),quapy,elm,quapy.method.aggregative.SVMperf,,True,2,2,True,,exige o binario externo do SVM-perf (SVMPERF_HOME)
+SVM(KLD),minimizacao explicita da perda (ELM),mlquantify,elm,-,,False,0,0,False,nao publicado na mlquantify 0.5.1 (outro branch),
+SVM(KLD),minimizacao explicita da perda (ELM),quapy,elm,quapy.method.aggregative.SVMperf,,True,2,2,True,,exige o binario externo do SVM-perf (SVMPERF_HOME)
+SVM(NKLD),minimizacao explicita da perda (ELM),mlquantify,elm,-,,False,0,0,False,nao publicado na mlquantify 0.5.1 (outro branch),
+SVM(NKLD),minimizacao explicita da perda (ELM),quapy,elm,quapy.method.aggregative.SVMperf,,True,2,2,True,,exige o binario externo do SVM-perf (SVMPERF_HOME)
+SVM(Q),minimizacao explicita da perda (ELM),mlquantify,elm,-,,False,0,0,False,nao publicado na mlquantify 0.5.1 (outro branch),
+SVM(Q),minimizacao explicita da perda (ELM),quapy,elm,quapy.method.aggregative.SVMperf,,True,2,2,True,,exige o binario externo do SVM-perf (SVMPERF_HOME)
+SVM(RAE),minimizacao explicita da perda (ELM),mlquantify,elm,-,,False,0,0,False,nao publicado na mlquantify 0.5.1 (outro branch),
+SVM(RAE),minimizacao explicita da perda (ELM),quapy,elm,quapy.method.aggregative.SVMperf,,True,2,2,True,,exige o binario externo do SVM-perf (SVMPERF_HOME)
+EDx,nao agregativo,mlquantify,core,mlquantify.matching.EDx,,False,0,0,True,,
+EDx,nao agregativo,quantificationlib,core,quantificationlib.multiclass.energy.EDX,,False,0,0,True,,
+EDx,nao agregativo,quapy,core,quapy.method.non_aggregative.EDx,,False,0,0,True,,
+EDx,nao agregativo,qunfold,core,qunfold.EDx,,False,0,0,True,,
+GHDx,nao agregativo,mlquantify,core,mlquantify.matching.GHDx,,False,0,0,True,,
+GHDx,nao agregativo,qunfold,core,qunfold.HDx,,False,1,1,True,,a classe qunfold.HDx e a formulacao generalizada (GHDx)
+HDx,nao agregativo,mlquantify,core,mlquantify.matching.HDx,,False,0,0,True,,
+HDx,nao agregativo,quantificationlib,core,quantificationlib.multiclass.df.HDX,,False,0,0,True,,
+HDx,nao agregativo,quapy,core,quapy.method.non_aggregative.DMx,,False,0,0,True,,DMx com divergencia de Hellinger e o HDx
+README,nao agregativo,quapy,text,quapy.method.non_aggregative.ReadMe,,False,0,0,True,,exige matriz binaria de atributos; nao se aplica a dados tabulares
+GMNet,neurais,mlquantify,neural,-,,False,0,0,False,nao publicado na mlquantify 0.5.1 (outro branch),
+GMNet,neurais,quapy,neural,quapy.method.meta.GMNet,,False,1,1,True,,depende do PyTorch
+HistNetQ,neurais,mlquantify,neural,-,,False,0,0,False,nao publicado na mlquantify 0.5.1 (outro branch),
+HistNetQ,neurais,quapy,neural,quapy.method.meta.HistNetQ,,False,1,1,True,,depende do PyTorch
+QuaNet,neurais,mlquantify,neural,-,,False,0,0,False,nao publicado na mlquantify 0.5.1 (outro branch),
+QuaNet,neurais,quapy,neural,quapy.method.meta.QuaNet,,False,1,1,True,,depende do PyTorch
+MAX,selecao de limiar,mlquantify,core,mlquantify.counting.TMAX,,True,0,0,True,,
+MAX,selecao de limiar,quapy,core,quapy.method.aggregative.MAX,,True,0,1,True,,
+MS,selecao de limiar,mlquantify,core,mlquantify.counting.MS,,True,0,0,True,,
+MS,selecao de limiar,quapy,core,quapy.method.aggregative.MS,,True,0,1,True,,
+MS2,selecao de limiar,mlquantify,core,mlquantify.counting.MS2,,True,0,0,True,,
+MS2,selecao de limiar,quapy,core,quapy.method.aggregative.MS2,,True,0,1,True,,
+T50,selecao de limiar,mlquantify,core,mlquantify.counting.T50,,True,0,0,True,,
+T50,selecao de limiar,quapy,core,quapy.method.aggregative.T50,,True,0,1,True,,
+TAC,selecao de limiar,mlquantify,core,mlquantify.counting.TAC,,True,0,0,True,,
+X,selecao de limiar,mlquantify,core,mlquantify.counting.TX,,True,0,0,True,,
+X,selecao de limiar,quapy,core,quapy.method.aggregative.X,,True,0,1,True,,
+CDE,verossimilhanca,mlquantify,core,mlquantify.likelihood.CDE,,False,0,0,True,,
+EMQ,verossimilhanca,mlquantify,core,mlquantify.likelihood.EMQ,,False,0,0,True,,
+EMQ,verossimilhanca,quantificationlib,core,quantificationlib.multiclass.em.EM,,False,1,1,True,,
+EMQ,verossimilhanca,quapy,core,quapy.method.aggregative.EMQ,,False,0,0,True,,
+EMQ,verossimilhanca,qunfold,core,qunfold.LikelihoodMaximizer,,False,0,0,True,,
+MLPE,verossimilhanca,mlquantify,core,mlquantify.likelihood.MLPE,,False,0,0,True,,"linha de base trivial de Hassan, Maletzke e Batista (2021)"
+MLPE,verossimilhanca,quapy,core,quapy.method.non_aggregative.MaximumLikelihoodPrevalenceEstimation,,False,0,0,True,,
+PWK,vizinhos e arvores,mlquantify,core,mlquantify.neighbors.PWK,,False,0,0,True,,
+PWK,vizinhos e arvores,quantificationlib,core,quantificationlib.multiclass.knn.PWKQuantifier,,False,0,0,True,,

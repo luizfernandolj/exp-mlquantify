@@ -1,0 +1,5 @@
+biblioteca,arquivo,linhas_de_codigo,configuracoes_manuais,linhas_totais
+mlquantify,mlquantify_script.py,53,0,72
+quantificationlib,quantificationlib_script.py,69,3,92
+quapy,quapy_script.py,56,4,79
+qunfold,qunfold_script.py,75,2,101

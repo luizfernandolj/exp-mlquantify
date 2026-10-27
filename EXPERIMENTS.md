@@ -1,0 +1,708 @@
+# Experimentos de comparacao entre bibliotecas de quantificacao
+
+Implementacao da Etapa 4 da monografia (Secao 4.3.4): a biblioteca proposta
+(`mlquantify`) e comparada com `QuaPy`, `QuantificationLib` e `qunfold` em
+erro de quantificacao, custo computacional e esforco de uso.
+
+---
+
+## 1. Preparar o ambiente
+
+Python **3.11** (as bibliotecas comparadas ainda nao acompanham versoes mais
+novas).
+
+```powershell
+.\setup_env.ps1
+```
+
+```bash
+./setup_env.sh
+```
+
+O script cria `.venv/`, instala o `requirements.txt` e imprime a versao de
+cada biblioteca. Duas armadilhas ja estao resolvidas no arquivo de
+dependencias:
+
+- o pacote `qunfold` do PyPI e **outro projeto** (unfolding quantico); a
+  biblioteca de quantificacao de Bunse so existe no GitHub e e instalada de
+  la;
+- o `scikit-learn` esta fixado em `1.5.2`, porque a `QuantificationLib`
+  chama `cross_val_predict` com o argumento `fit_params`, removido na versao
+  1.6. Todas as bibliotecas recebem a mesma versao, entao a comparacao
+  continua justa.
+
+Para que todas as maquinas tenham **exatamente** o mesmo ambiente, use o
+arquivo de versoes travadas em vez do `requirements.txt`:
+
+```bash
+.venv/Scripts/pip install -r requirements.lock.txt
+```
+
+---
+
+## 2. Montar o catalogo (uma vez)
+
+```bash
+.venv/Scripts/python build_catalog.py --methods-table
+```
+
+Percorre `datasets/`, mede os atributos de cada arquivo e aplica os quatro
+criterios de selecao da Secao 4.3.3, em sequencia:
+
+| Criterio | O que remove |
+| --- | --- |
+| arquivos auxiliares | particoes de treino/teste/validacao e submissoes |
+| classe unica | arquivos sem prevalencia a estimar |
+| duplicatas | copias do mesmo conjunto |
+| classes raras | classe minoritaria com menos de 30 instancias |
+
+Gera tres arquivos em `descricao/`:
+
+- `catalogo_experimentos.csv` — todos os arquivos, com os atributos medidos
+  e o motivo de cada exclusao;
+- `datasets_selecionados.csv` — os selecionados, com uma coluna `indice`
+  deterministica. **Esse indice e o que `--range` e `--shard` usam**, entao
+  o arquivo precisa ser o mesmo em todas as maquinas (gere uma vez e copie,
+  ou mantenha no repositorio);
+- `cobertura_metodos.csv` — quais metodos cada biblioteca implementa.
+
+Opcoes uteis:
+
+```bash
+# criterio de duplicata da monografia (tamanho + distribuicao de classes)
+python build_catalog.py --duplicate-key shape_dist
+
+# outro corte de classe minoritaria
+python build_catalog.py --min-minority 10
+```
+
+---
+
+## 3. Rodar
+
+```bash
+.venv/Scripts/python run_experiments.py --run-id final
+```
+
+Usa todos os nucleos. O que cada job faz, por conjunto de dados:
+
+1. divisao estratificada 50/50 entre treino e teste;
+2. protocolo UPP sobre a parte de teste: `m` em {10, 50, 100, 500}, 100
+   vetores de prevalencia por tamanho, totalizando **400 amostras**. As
+   amostras sao geradas **uma unica vez**, guardadas como indices em
+   `.cache/samples/` e reusadas por todas as bibliotecas;
+3. cada metodo e treinado com uma regressao logistica nova, de semente fixa,
+   e estima a prevalencia das 400 amostras;
+4. sao registrados AE, RAE, SE e NKLD por amostra, mais tempo e pico de
+   memoria.
+
+As medidas de tempo sao repetidas tres vezes e resumidas pela mediana; o
+pico de memoria e medido em uma repeticao separada, porque o `tracemalloc`
+altera o tempo. Cada processo roda com **uma thread** (`OMP_NUM_THREADS=1`),
+de modo que o paralelismo fique entre jobs e os tempos nao dependam do BLAS.
+
+### Acompanhar
+
+Uma barra geral e uma barra por trabalhador, mostrando o conjunto, a
+biblioteca e o metodo em andamento:
+
+```
+Combinacoes:  34%|███▍      | 3542/10290 [1:12:03<2:17:31, 1.22comb/s] ok=3498 erro=44
+  [ 12/30 ] mlquantify        KDEyML     1489_phoneme.csv
+  [  7/20 ] quapy             EMQ        44_spambase.csv
+  [  3/12 ] quantificationlib HDy        BNG.csv
+  [  5/8  ] qunfold           EDy        letter.csv
+```
+
+O detalhe de cada combinacao vai para `logs/<run-id>__<node>.log`; o
+terminal fica reservado para as barras.
+
+---
+
+## 4. Dividir entre varias maquinas
+
+Todas as maquinas usam o **mesmo `--run-id`** e um **`--node` diferente**.
+Cada uma grava em sua propria pasta, entao nao ha conflito.
+
+### Por fatia em rodizio (recomendado)
+
+Distribui conjuntos grandes e pequenos de forma parecida entre as maquinas:
+
+```bash
+# maquina 1
+python run_experiments.py --run-id final --node pc1 --shard 1/3
+# maquina 2
+python run_experiments.py --run-id final --node pc2 --shard 2/3
+# maquina 3
+python run_experiments.py --run-id final --node pc3 --shard 3/3
+```
+
+### Por faixa de indice
+
+O catalogo esta ordenado por tamanho, entao as faixas finais sao bem mais
+pesadas. Use quando as maquinas tiverem capacidades diferentes:
+
+```bash
+python run_experiments.py --run-id final --node forte  --range 120:999
+python run_experiments.py --run-id final --node medio  --range 60:120
+python run_experiments.py --run-id final --node fraco  --range 0:60
+```
+
+### Por biblioteca, ou por conjunto especifico
+
+```bash
+python run_experiments.py --run-id final --node pc1 --libraries mlquantify,quapy
+python run_experiments.py --run-id final --node pc2 --libraries quantificationlib,qunfold
+
+python run_experiments.py --run-id final --node pc1 --datasets phoneme,spambase
+python run_experiments.py --run-id final --node pc2 --types multiclasse
+```
+
+### Reunir no final
+
+Copie de cada maquina as duas pastas abaixo para a mesma arvore:
+
+```
+results/final/parts/<node>/
+results/final/ledger/<node>/
+```
+
+e rode uma unica vez:
+
+```bash
+python aggregate_results.py --run-id final
+```
+
+---
+
+## 5. Retomar e acompanhar
+
+O **ledger** (`results/<run-id>/ledger/<node>/*.jsonl`) e a fonte de verdade
+sobre o andamento: uma linha JSON por combinacao, gravada assim que ela
+termina. Saber quanto falta, ou retomar de onde parou, nao depende de ler
+nenhum arquivo de resultado.
+
+```bash
+# andamento, lido so do ledger
+python run_experiments.py --run-id final --status
+
+# retomar: basta repetir o mesmo comando, o que ja esta no ledger e pulado
+python run_experiments.py --run-id final --node pc1 --shard 1/3
+
+# refazer tudo do zero
+python run_experiments.py --run-id final --fresh
+```
+
+Metodos que falharam tambem ficam registrados e **nao sao repetidos** — uma
+falha por limitacao da biblioteca e um resultado, nao um erro de execucao.
+Para tentar de novo, apague o ledger ou use `--fresh`.
+
+---
+
+## 6. Metodos deixados para depois
+
+Os quantificadores da familia ELM (`SVM(Q)`, `SVM(KLD)`, `SVM(NKLD)`,
+`SVM(AE)`, `SVM(RAE)`) e os neurais (`QuaNet`, `HistNetQ`, `GMNet`) ainda
+nao estao na versao publicada da `mlquantify` e **nao entram na execucao
+padrao**. Ja estao registrados e podem ser rodados sozinhos quando o branch
+estiver pronto:
+
+```bash
+# ELM: na QuaPy exige o binario externo do SVM-perf (variavel SVMPERF_HOME)
+python run_experiments.py --run-id elm --groups elm --libraries mlquantify,quapy
+
+# neurais: exigem PyTorch
+python run_experiments.py --run-id neural --groups neural --libraries mlquantify,quapy
+```
+
+Outros grupos fora do padrao:
+
+```bash
+# metaquantificadores (Ensembles, Bootstrap)
+python run_experiments.py --run-id meta --groups meta
+
+# README da QuaPy: so se aplica a dados textuais com atributos binarios
+python run_experiments.py --run-id texto --groups text --libraries quapy
+```
+
+Enquanto nao forem executados, esses metodos aparecem no `summary.csv` com
+`status = indisponivel` e o motivo em `mensagem_erro`.
+
+---
+
+## 7. O que sai
+
+Em `results/<run-id>/`:
+
+| Arquivo | Conteudo |
+| --- | --- |
+| `summary.csv` | **o arquivo principal**: uma linha por (conjunto, biblioteca, metodo, tamanho de amostra) |
+| `per_sample.csv` | uma linha por amostra, com a prevalencia real e a estimada |
+| `q1_erro.csv` | erro pareado entre a mlquantify e cada biblioteca de referencia |
+| `q2_custo.csv` | tempo e memoria, com a razao sobre a mlquantify |
+| `q3_uso.csv` | configuracoes manuais, taxa de sucesso sem ajustes e linhas de codigo |
+| `testes_estatisticos.csv` | Friedman por metodo e por medida, com os ranks medios |
+| `nemenyi/*.csv` | Nemenyi onde o Friedman acusou diferenca (alfa = 0,05) |
+| `visao_geral.csv` | contagem por biblioteca e situacao |
+
+### Colunas do `summary.csv`
+
+**Identificacao** — `dataset_id`, `tipo_dataset`, `n_instancias`,
+`n_atributos`, `n_classes`, `razao_desbalanceamento`, `n_treino`, `n_teste`,
+`biblioteca`, `versao_biblioteca`, `metodo`, `familia`, `classe`, `aliases`.
+
+**Protocolo** — `protocolo`, `tamanho_amostra`, `n_amostras` (quantas
+amostras deste tamanho entraram nas medidas), `n_amostras_descartadas`
+(quantas deste tamanho foram descartadas), `amostras_descartadas_total`
+(descartadas na combinacao inteira), `motivo_descarte`, `n_prevalencias`,
+`semente`, `proporcao_teste`.
+
+**Q1, erro** — `mae`, `mrae`, `mse`, `nkld_medio`, mais desvio padrao,
+mediana, quartis e maximo de AE e RAE, e a faixa de prevalencia coberta
+(`prev_real_min`, `prev_real_max`).
+
+**Q2, custo** — `tempo_treino_s`, `tempo_estimacao_s` (deste tamanho de
+amostra), `tempo_estimacao_total_s` (todas as amostras),
+`tempo_estimacao_por_amostra_s`, `memoria_treino_mb`,
+`memoria_estimacao_mb`, `repeticoes_custo`.
+
+**Q3, esforco de uso** — `configuracoes_manuais`,
+`usou_decomposicao_manual`, `forma_direta_ok` (a biblioteca aceitou o uso
+direto, sem ajuste) e `erro_forma_direta`.
+
+**Situacao** — `status` (`ok`, `erro`, `timeout`, `indisponivel`),
+`tipo_erro`, `mensagem_erro`. Uma combinacao com `status = ok` e
+`amostras_descartadas_total > 0` foi concluida com menos de 400 amostras;
+veja *Amostras invalidas* na secao 9.
+
+### Nomes equivalentes de metodo
+
+Bibliotecas diferentes dao nomes diferentes a mesma formulacao. O `GACC` da
+`mlquantify` corresponde ao `ACC` das outras tres, que ja sao multiclasse
+nativas; o `GPACC` corresponde ao `PACC`. A agregacao usa essa equivalencia
+(coluna `aliases`) para que a comparacao por nome nao acabe comparando
+formulacoes distintas. No `summary.csv` o nome e sempre o da execucao; nas
+tabelas Q1 e Q2 as linhas aparecem tambem sob o nome equivalente, com
+`via_alias = True`.
+
+---
+
+## 8. Esforco de uso (Q3)
+
+Em `scripts/q3_usage/` ha um script por biblioteca que conduz o mesmo
+experimento sobre um conjunto de dados, do carregamento ao calculo do erro,
+seguindo apenas a documentacao oficial de cada uma. As instrucoes que
+existem so para adaptar o metodo ou os dados ao formato da biblioteca estao
+marcadas com `# MANUAL:`.
+
+```bash
+python count_loc.py
+```
+
+Formata os quatro scripts com o Black (88 colunas) e conta as linhas
+logicas com o modulo `tokenize`, desconsiderando linhas em branco,
+comentarios e docstrings. O resultado vai para
+`descricao/q3_linhas_de_codigo.csv` e entra no `q3_uso.csv`.
+
+---
+
+## 9. Quanto tempo leva
+
+A execucao completa sao **142 conjuntos x 70 combinacoes = 9.940
+combinacoes**. Com o protocolo padrao, cada combinacao faz 4 treinamentos e
+1.600 estimacoes (3 repeticoes de tempo, mais uma repeticao so para medir
+memoria).
+
+Medidas feitas neste repositorio, somando as quatro bibliotecas:
+
+| Conjunto | Instancias | CPU por conjunto |
+| --- | --- | --- |
+| `iris.2`, `wine`, `sonar` | 150 a 208 | ~11 min |
+| `space_ga`, `yeast_data` | ~3.100 | ~48 min |
+
+O custo cresce devagar com o tamanho do conjunto (cerca de `n^0,5`), porque
+**o que domina sao as 1.600 estimacoes por metodo**, feitas sobre amostras
+de no maximo 500 instancias; so o treinamento cresce com `n`. Extrapolando
+para a colecao inteira:
+
+- **cerca de 220 horas de CPU** no total;
+- **13 horas de relogio** em uma maquina de 20 nucleos;
+- divididas em tres maquinas parecidas, **4 a 5 horas** em cada.
+
+A maior parte do custo esta em poucos metodos: `KDEyHD`, `HDy` com
+decomposicao e `PACC` da qunfold passam de 2 minutos por conjunto cada.
+
+### Reduzir o tempo
+
+O tamanho dos conjuntos **nao** e o lever principal: limitar a 50.000
+instancias so tira 15% do total. O que corta de verdade e o numero de
+repeticoes:
+
+```bash
+# ~4x mais rapido (55 h de CPU, ~3 h em 20 nucleos): uma repeticao de tempo
+# e sem medir memoria. Os numeros de erro (Q1) ficam identicos, porque sao
+# deterministicos; so as medidas de custo (Q2) perdem a mediana de 3.
+python run_experiments.py --run-id piloto --cost-repeats 1 --no-memory
+
+# metade das amostras: 50 vetores de prevalencia em vez de 100
+python run_experiments.py --run-id piloto --n-prevalences 50
+```
+
+Uma estrategia que funciona bem: rodar tudo com `--cost-repeats 1
+--no-memory` para ter o Q1 em poucas horas, e depois uma execucao separada,
+com outro `--run-id` e o protocolo completo, so nos metodos e conjuntos que
+interessam para o Q2.
+
+### Conjuntos muito grandes e o tempo limite
+
+Os oito conjuntos maiores concentram boa parte do custo:
+
+| Conjunto | Instancias | CPU estimada |
+| --- | --- | --- |
+| `Dermatology.csv` | 1.000.000 | ~16 h |
+| `healthcare.csv` | 318.438 | ~9 h |
+| `phphQEck0.csv` | 245.057 | ~8 h |
+| `Mosquitoes.csv` | 158.249 | ~6 h |
+
+Cada um deles vira quatro jobs (um por biblioteca), e **um job desses passa
+do `--job-timeout` padrao de 2 horas**. O job e encerrado, os metodos que
+ja terminaram ficam gravados e o resto continua pendente no ledger. Para
+fechar esses conjuntos, rode de novo sem limite — so o que falta sera
+refeito:
+
+```bash
+python run_experiments.py --run-id final --job-timeout 0 --range 130:999
+```
+
+Alternativamente, limite esses conjuntos desde o inicio:
+
+```bash
+python run_experiments.py --run-id final --max-rows 100000
+```
+
+### Um nucleo por trabalhador
+
+Cada trabalhador e **preso a um nucleo logico** (`pin_cpu`, em
+`config.py`). Isso nao e so arrumacao: o JAX, usado pela qunfold, **ignora**
+`OMP_NUM_THREADS` e abre um pool proprio de cerca de 70 threads por
+processo. Sem a afinidade, 20 trabalhadores viravam mais de 600 threads
+disputando 20 nucleos, o que multiplicou por cinco o tempo medido da
+qunfold e contaminou tambem o tempo das outras bibliotecas.
+
+Medido em maquina ociosa, um `predict` da qunfold leva ~220 ms sem
+afinidade e ~250 ms com afinidade (12% de diferenca); sob a disputa, passava
+de 1.100 ms. A afinidade tambem alinha a medicao com a monografia, que pede
+medidas "em um unico processo, sem paralelismo".
+
+### Pasta de saida fora de pasta sincronizada
+
+Se o repositorio estiver no OneDrive, Dropbox ou similar, grave os
+resultados fora dele: o sincronizador mantem os arquivos abertos enquanto
+envia, o que trava a gravacao dos parciais.
+
+```bash
+python run_experiments.py --run-id final --out-dir C:\Users\voce\exp-run
+python aggregate_results.py --run-id final --out-dir C:\Users\voce\exp-run
+```
+
+### Se a maquina dormir no meio
+
+O relogio do Windows continua correndo durante a suspensao. Sem tratamento,
+ao acordar todos os jobs em andamento pareceriam ter estourado o tempo
+limite de uma vez, e suas medidas de tempo ficariam sem sentido. Tres
+defesas:
+
+- o tempo limite por metodo e contado em **tempo de CPU**
+  (`time.process_time`), que nao avanca enquanto a maquina dorme;
+- o escalonador detecta saltos de relogio maiores que um minuto e desconta
+  o salto do inicio dos jobs em andamento, em vez de encerra-los;
+- cada combinacao grava `cpu_total_s` junto do tempo de relogio; se os dois
+  divergirem em mais de 300 s, a linha sai com `medida_suspeita = True` e a
+  agregacao a exclui do Q2 (o erro continua valendo para o Q1).
+
+Para execucoes longas, vale impedir o sono por ociosidade. Se mesmo assim
+uma suspensao contaminar parte do ledger, `clean_ledger.py` encontra as
+janelas paradas e remove apenas as combinacoes que as cruzaram:
+
+```bash
+python clean_ledger.py --run-id final --out-dir C:\Users\voce\exp-run
+python clean_ledger.py --run-id final --out-dir C:\Users\voce\exp-run --apply
+```
+
+Sem `--apply` ele so mostra o que faria. As combinacoes removidas sao
+refeitas na proxima execucao; o resto e preservado.
+
+### Rodizio entre bibliotecas
+
+Os jobs pendentes sao reordenados em rodizio por biblioteca antes de
+comecar. Sem isso, uma execucao retomada pode deixar o que sobrou
+concentrado em uma unica biblioteca e colocar todos os trabalhadores nela
+ao mesmo tempo -- o que, no caso da qunfold, significa nenhuma conclusao
+por horas e memoria estourada, porque cada processo dela carrega o JAX.
+
+### Se precisar interromper
+
+Os trabalhadores checam o processo principal entre um metodo e outro e
+encerram junto com ele. Ainda assim, se a execucao for morta de fora no
+meio de um metodo longo, pode sobrar algum processo orfao, consumindo
+nucleo e segurando os arquivos do ledger. Para conferir e limpar:
+
+```powershell
+Get-CimInstance Win32_Process -Filter "Name='python.exe'" |
+  Where-Object { $_.CommandLine -like '*spawn_main*' } |
+  ForEach-Object { Stop-Process -Id $_.ProcessId -Force }
+```
+
+### Memoria
+
+Cada processo trabalhador usa cerca de **260 MB** so de bibliotecas (numpy,
+scikit-learn e, no caso da qunfold, jax). Com 20 processos sao cerca de
+**5,2 GB** antes de qualquer dado. Em uma maquina de 16 GB com navegador
+aberto isso ja fica apertado.
+
+O custo real, no entanto, nao vem das bibliotecas: vem do conjunto de
+dados, e **cresce com o tamanho dele**. O catalogo esta ordenado por numero
+de instancias, entao o numero de trabalhadores que funciona no comeco da
+execucao nao funciona no fim. Na nossa execucao, 14 trabalhadores
+atravessaram 91% do catalogo sem problema e so entao a maquina (15,7 GB)
+ficou sem memoria, ja na cauda, onde estao conjuntos de 100 mil a 1 milhao
+de instancias.
+
+Quando isso acontece o estrago nao fica contido em um trabalhador:
+
+* alocacoes banais, de poucos MiB, comecam a falhar com `MemoryError` em
+  metodos que nao tem nenhum problema de escala -- foi assim que 19
+  combinacoes da QuaPy falharam todas no mesmo minuto;
+* chamadas triviais do proprio escalonador passam a levantar `OSError`
+  (no Windows, `WinError 1450`, "recursos insuficientes do sistema"). Era
+  por aqui que a execucao morria: o escalonador caia, os trabalhadores
+  continuavam em seus jobs, e por horas ninguem lancava os jobs restantes.
+
+O escalonador agora tolera essas falhas (`MAX_FALHAS_DE_SISTEMA` em
+`expq/parallel.py`): espera um segundo e tenta de novo, porque trabalhador
+que termina devolve memoria. Mas isso e rede de protecao, nao solucao.
+
+**A cauda do catalogo pede menos trabalhadores que o comeco.** Rode em duas
+passadas, separando os conjuntos gigantes:
+
+```bash
+GIGANTES=Dermatology,healthcare,phphQEck0,Mosquitoes,Walking,Covertype,star_classification,fashion-mnist,blog_feedback
+
+# os 133 conjuntos normais, com folga de paralelismo
+python run_experiments.py --run-id final -j 6 --skip-datasets $GIGANTES
+
+# os 9 gigantes, um por vez em cada biblioteca
+python run_experiments.py --run-id final -j 3 --datasets $GIGANTES
+```
+
+As duas passadas somam o catalogo inteiro, e o ledger cuida de nao repetir
+nada. Alternativa, se o tempo importar mais que a fidelidade do conjunto:
+`--max-rows 50000`, que subamostra os gigantes de forma estratificada.
+
+#### Separar falta de memoria de limitacao do metodo
+
+As duas coisas aparecem no ledger como `MemoryError`, e so uma delas e
+resultado. O que separa e o **tamanho da alocacao**:
+
+| alocacao pedida | o que e | o que fazer |
+|---|---|---|
+| 1 MiB a 46 MiB | a maquina estava sem memoria | refazer |
+| 3,6 GiB a 70 GiB | o metodo montou matriz de distancia entre todas as instancias | e resultado, fica |
+
+Nao houve nada entre 46 MiB e 3,6 GiB, entao o corte e seguro. O
+`clean_pressure.py` faz essa separacao, remove do ledger so o primeiro caso
+e deixa o segundo como medida valida:
+
+```bash
+python clean_pressure.py --run-id final --out-dir ... # simula
+python clean_pressure.py --run-id final --out-dir ... --apply
+```
+
+As medidas de tempo tiradas durante a pressao de memoria continuam no
+ledger: a paginacao infla o tempo de relogio, mas a coluna `medida_suspeita`
+marca os casos em que relogio e CPU divergem demais, e a agregacao de Q2 os
+descarta.
+
+### Amostras invalidas
+
+O protocolo UPP gera **400 amostras** por combinacao. Algumas vezes um
+metodo nao consegue estimar uma delas: devolve um vetor sem massa nenhuma,
+ou a propria biblioteca recusa a saida. Isso nao e o metodo falhando, e uma
+amostra em que ele nao achou resposta.
+
+Por isso a amostra invalida e **descartada sozinha**, e a combinacao segue
+com as demais. O limite e `MAX_INVALID_FRACTION`, 5% das amostras, em
+`expq/runner.py`: acima disso nao se trata mais de amostra isolada -- o
+metodo nao esta estimando nada -- e a combinacao e reprovada com
+`TooManyInvalidSamples`. Falta de memoria e tempo limite nao entram nessa
+conta: dizem respeito a medicao inteira e reprovam a combinacao na hora.
+
+Nao importa quem recusou a estimativa, nos ou a biblioteca. A QuaPy checa o
+vetor por conta propria e levanta a excecao dentro do `predict`; para a
+comparacao isso e a mesma coisa que o nosso `normalize_prevalence` recusar a
+saida.
+
+O limite separa os dois casos por evidencia, nao por suposicao. O `SMM`
+multiclasse da QuaPy ilustra bem:
+
+| conjunto | amostras invalidas | resultado |
+|---|---|---|
+| `wine.csv` (3 classes) | 1 de 400 | concluida com 399 amostras |
+| `IRIS.csv` (3 classes) | 37 de 400 (9,3%) | reprovada |
+
+Onde houve descarte, o `summary.csv` traz `n_amostras_descartadas`,
+`amostras_descartadas_total` e `motivo_descarte`, a `visao_geral.csv` traz a
+coluna `ok_com_descarte`, e a agregacao grava
+`amostras_descartadas.csv` com uma linha por combinacao afetada.
+
+A politica antiga reprovava a combinacao na primeira amostra invalida, o que
+jogava fora as outras 399 medidas e subestimava a cobertura das bibliotecas
+afetadas. Para refazer o que foi reprovado assim:
+
+```bash
+python clean_invalid.py --run-id final --out-dir ... # simula
+python clean_invalid.py --run-id final --out-dir ... --apply
+python run_experiments.py --run-id final -j 6       # refaz so o que saiu
+```
+
+O ledger guarda a mensagem do erro, nao o tipo da excecao, e a mensagem do
+`TooManyInvalidSamples` repete o motivo mais frequente entre as amostras
+descartadas -- entao ela casa com os mesmos textos que o script procura. O
+`clean_invalid.py` reconhece esse caso e **nao** marca a combinacao para
+refazer: ela passou dos 5% e foi reprovada com razao, refazer daria o mesmo
+resultado. Aconteceu uma vez na execucao final, com o `ACC` da mlquantify em
+`news_popularity_data.csv` (39 644 instancias, 4 classes): **169 das 400
+amostras** com estimativa de soma nula, 42% do protocolo.
+
+---
+
+## 10. Ajustes do protocolo
+
+```bash
+# protocolo reduzido, para uma primeira passada rapida
+python run_experiments.py --run-id piloto \
+    --sample-sizes 50,100 --n-prevalences 20 --cost-repeats 1 --no-memory
+
+# limitar conjuntos muito grandes por subamostragem estratificada
+python run_experiments.py --run-id final --max-rows 50000
+
+# um metodo so, em todas as bibliotecas
+python run_experiments.py --run-id acc --methods ACC,GACC
+
+# ver o plano sem executar
+python run_experiments.py --run-id final --shard 1/3 --dry-run
+```
+
+Opcoes principais:
+
+| Opcao | Para que serve |
+| --- | --- |
+| `--run-id` | nome da execucao; o mesmo em todas as maquinas |
+| `--node` | nome desta maquina (padrao: hostname) |
+| `--shard I/N`, `--range INI:FIM` | divisao do trabalho |
+| `--datasets`, `--skip-datasets`, `--types` | filtro de conjuntos |
+| `--libraries`, `--groups`, `--methods` | filtro de metodos |
+| `--sample-sizes`, `--n-prevalences` | protocolo UPP |
+| `--cost-repeats`, `--no-memory` | medidas de custo |
+| `-j`, `--jobs` | processos simultaneos |
+| `--job-timeout`, `--method-timeout` | limites em segundos |
+| `--max-rows` | subamostra conjuntos grandes |
+| `--fresh` | ignora o ledger |
+| `--status`, `--dry-run` | inspecao |
+
+---
+
+## 11. Limitacoes das bibliotecas encontradas na montagem
+
+Observacoes registradas ao adaptar cada biblioteca, que sustentam a
+discussao das questoes Q1 e Q3. As versoes sao as do `requirements.txt`.
+
+| Biblioteca | O que acontece |
+| --- | --- |
+| QuaPy | metodos binarios (`HDy`, `DyS`, `SMM`, `T50`, `X`, `MAX`, `MS`, `MS2`) interrompem a execucao em problemas multiclasse e precisam de `newOneVsAll` |
+| QuaPy | mesmo com a decomposicao, o `SMM` multiclasse produz prevalencias negativas e a propria biblioteca aborta; fica registrado como `erro` |
+| QuaPy | o `README` so aceita matriz binaria de atributos, entao nao se aplica a dados tabulares (grupo `text`) |
+| QuantificationLib | metodos que estimam a distribuicao de treinamento exigem `CV_estimator` e a separacao entre `estimator_train` e `estimator_test` |
+| QuantificationLib | o `OneVsRestQuantifier` exige, alem da decomposicao, que os dois estimadores sejam instancias de `OneVsRestClassifier` |
+| QuantificationLib | chama `cross_val_predict` com `fit_params`, removido no scikit-learn 1.6; por isso a versao esta fixada em 1.5.2 |
+| QuantificationLib | o `EoQ` 0.1.2 quebra na forma documentada e, na forma que executa, devolve sempre a mesma estimativa; marcado como `indisponivel` |
+| qunfold | o pacote `qunfold` do PyPI e outro projeto; a biblioteca de quantificacao so existe no GitHub |
+| qunfold | metodos agregativos exigem `CVClassifier`, e `HDy`/`HDx` exigem `n_bins`, que nao tem valor padrao |
+| qunfold | nao oferece protocolos de avaliacao nem metricas de erro: ambos precisam ser escritos no script |
+| mlquantify 0.5.1 | aplica a decomposicao multiclasse sozinha, sem configuracao; nao exigiu nenhum ajuste |
+| mlquantify 0.5.1 | nao traz `PACC` como classe propria: o equivalente e o `GPACC`, que coincide com o `PACC` da QuaPy |
+| mlquantify 0.5.1 | ainda sem os metodos ELM e neurais (outro branch), por isso o grupo padrao os deixa de fora |
+
+### Limitacoes de escala observadas na execucao
+
+As anteriores aparecem ao escrever o codigo. Estas so aparecem ao rodar, e
+quase todas sao a mesma coisa vista de angulos diferentes: **o metodo monta
+uma estrutura quadratica no numero de instancias ou de atributos.** Nenhuma
+e erro de adaptacao; o conjunto apenas passou do ponto em que a formulacao
+se sustenta. O limite por metodo e de 30 min de tempo de CPU.
+
+| Biblioteca | Metodo | O que acontece |
+| --- | --- | --- |
+| QuantificationLib | `SORD` | nao termina as 400 amostras em 30 min em **nenhum** conjunto acima de ~10 mil instancias |
+| QuantificationLib | `HDx` | `list index out of range` em dados de alta dimensionalidade; em dois casos devolveu um unico valor onde cabiam varias prevalencias |
+| qunfold | `GHDx` | nao converge em 30 min em dados de alta dimensionalidade (`gina_agnostic` com 970 atributos, `madelon` com 500) |
+| QuaPy, QuantificationLib, qunfold | `EDx`, `EDy`, `MMD` | pedem a matriz de distancia entre todas as instancias: 70 GiB em um conjunto de 245 mil instancias |
+| QuaPy, mlquantify | `KDEyCS` | mesma causa, 18 GiB no mesmo conjunto |
+| QuaPy | `SMM` | mesmo com `newOneVsAll`, produz prevalencias negativas ou que nao somam 1 em problemas multiclasse |
+| QuaPy, QuantificationLib | `EDx` | `constraints are inconsistent, no solution` quando a matriz de distancia degenera |
+| mlquantify | metodos de limiar (`CDE`, `HDy`, `MS`, `T50`, `X`, `MAX`, `MS2`, `ACC`, `TAC`) | devolvem um vetor inteiramente nulo em amostras pequenas de problemas multiclasse (ver abaixo) |
+
+#### O vetor nulo da mlquantify
+
+Verificado em `IRIS.csv` (3 classes), reproduzindo o protocolo: o `CDE`
+devolve `[0, 0, 0]` em **1** das 400 amostras e o `T50` em **2**. Em ambos
+os casos a amostra tem `m = 10`, o menor tamanho do protocolo; nenhuma
+amostra de 50, 100 ou 500 instancias foi afetada. Nao sao prevalencias
+negativas: a decomposicao um-contra-resto estima zero para todas as
+classes, e nao sobra nada para normalizar.
+
+Dois contrastes valem a discussao de Q1:
+
+* **mlquantify e QuaPy completam `HDx` onde as outras duas nao completam.**
+  Em `gina_agnostic` (970 atributos), o `HDx` da mlquantify termina em
+  4.815 s e o da QuaPy em 1.042 s, enquanto a QuantificationLib erra e a
+  qunfold estoura o tempo.
+* **A formulacao generalizada da mlquantify e mais barata que a classica
+  dela mesma.** No mesmo conjunto, `GHDx` leva 194 s contra 4.815 s do
+  `HDx` -- uma ordem de grandeza. Em `312_scene`, 65 s contra 1.254 s.
+
+---
+
+## 12. Organizacao do codigo
+
+```
+expq/
+  config.py      parametros do protocolo e caminhos
+  catalog.py     varredura de datasets/ e os quatro criterios de selecao
+  data.py        leitura e preparacao comum (com cache)
+  protocol.py    divisao 50/50 e geracao das amostras do UPP (com cache)
+  metrics.py     AE, RAE, SE e NKLD, implementados uma unica vez
+  registry.py    de que classe e cada metodo, em cada biblioteca
+  runner.py      execucao de um job, com tempo, memoria e tratamento de erro
+  parallel.py    escalonador em processos, com tempo limite e barras
+  ledger.py      registro de andamento e log
+  aggregate.py   reuniao dos parciais, Q1/Q2/Q3 e testes estatisticos
+  loc_count.py   contagem de linhas de codigo (Q3)
+```
+
+Na raiz, alem de `run_experiments.py` e `aggregate_results.py`:
+
+```
+build_catalog.py    monta o catalogo e aplica os criterios de selecao
+count_loc.py        contagem de linhas de codigo dos scripts de uso (Q3)
+clean_ledger.py     apaga medidas contaminadas por suspensao da maquina
+clean_pressure.py   apaga falhas de alocacao causadas por falta de RAM
+clean_invalid.py    apaga combinacoes reprovadas por amostra invalida isolada
+```
+
+Os tres `clean_*.py` sao a mesma ideia: apagam do ledger so as combinacoes
+que precisam ser refeitas, preservam o resto, e sem `--apply` apenas mostram
+o que fariam.
+
+Para acrescentar um metodo, basta uma linha em `registry.py` com o nome
+canonico e a classe que o implementa.
