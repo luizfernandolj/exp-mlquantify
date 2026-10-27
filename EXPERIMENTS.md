@@ -574,6 +574,42 @@ resultado. Aconteceu uma vez na execucao final, com o `ACC` da mlquantify em
 `news_popularity_data.csv` (39 644 instancias, 4 classes): **169 das 400
 amostras** com estimativa de soma nula, 42% do protocolo.
 
+### Coluna nova com a execucao em andamento
+
+O `_append_rows` grava o cabecalho so quando cria o arquivo. Se uma coluna e
+acrescentada ao `summary.csv` no meio da execucao, o parcial de uma
+combinacao medida antes continua com o cabecalho antigo, e as linhas novas
+entram com mais campos do que ele declara -- o pandas recusa o arquivo e a
+agregacao final para.
+
+Nada se perde: o numero de campos da linha diz sob qual esquema ela foi
+gravada. O `_realign` le cada linha pela posicao e escolhe o esquema por esse
+tamanho, usando `SUMMARY_ANTERIORES` em `expq/runner.py`. **Toda coluna nova
+precisa ser registrada ali**, no inicio da tupla; linha de tamanho que nenhum
+esquema explica interrompe a gravacao em vez de virar valor trocado em
+silencio.
+
+O `_realign` corrige o parcial que ainda vai receber linha nova. Para os que
+ja estao completos:
+
+```bash
+python clean_schema.py --run-id final --out-dir ... # simula
+python clean_schema.py --run-id final --out-dir ... --apply
+```
+
+Ele deixa de lado o parcial cuja combinacao ainda tem metodo pendente, para
+nao disputar o arquivo com um trabalhador vivo, e por padrao so toca nos que
+estao com linhas de tamanhos diferentes. Parcial de cabecalho antigo mas
+coerente o pandas le sem erro, com as colunas novas vazias; `--todos`
+reescreve esses tambem.
+
+Na execucao final isso aconteceu duas vezes: com `cpu_total_s` e
+`medida_suspeita` (25/10) e com as tres colunas de descarte (27/10). A
+primeira deixou 1 239 linhas em 50 parciais com o cabecalho defasado. As
+colunas de metrica e de tempo nao foram afetadas -- as colunas novas entraram
+perto do fim, entao o deslocamento atingiu so `python`, `sklearn` e
+`threads`, e o realinhamento devolve os valores aos seus lugares.
+
 ---
 
 ## 10. Ajustes do protocolo
@@ -661,6 +697,62 @@ amostra de 50, 100 ou 500 instancias foi afetada. Nao sao prevalencias
 negativas: a decomposicao um-contra-resto estima zero para todas as
 classes, e nao sobra nada para normalizar.
 
+O mecanismo foi rastreado em `news_popularity_data.csv` (39 644 instancias,
+4 classes), onde o `ACC` e o `TAC` da mlquantify devolvem o vetor nulo em
+**180 das 400 amostras** -- 81% das de `m = 10` e ainda 23% das de
+`m = 500`. Os dois sao binarios na mlquantify, e o multiclasse passa por
+um-contra-resto: cada sub-quantificador ajusta a propria regressao
+logistica binaria e corrige a contagem com
+
+```
+prevalencia_k = clip((cc_k - fpr_k) / (tpr_k - fpr_k), 0, 1)
+```
+
+Medido neste conjunto:
+
+| classe | prevalencia | TPR | FPR | TPR-FPR | % predito positivo |
+|---|---|---|---|---|---|
+| 0 | 0,3134 | 0,0282 | 0,0121 | 0,0160 | 1,66% |
+| 1 | 0,4125 | 0,0051 | 0,0031 | 0,0020 | 0,40% |
+| 2 | 0,1462 | 0,0866 | 0,0802 | 0,0064 | 0,05% |
+| 3 | 0,1279 | 0,0856 | 0,0845 | 0,0011 | 0,23% |
+
+As quatro taxas somam 2,3%, nao 100%: os binarios sao independentes, nao
+uma particao por `argmax`. Quase nunca preveem a classe positiva, entao na
+amostra `cc_k = 0` para todas as classes, `cc_k - fpr_k` fica negativo nas
+quatro, **cada uma e truncada em zero antes de combinar**, e sobra
+`[0, 0, 0, 0]`. O `normalize_prevalences` da biblioteca faz
+`if total > 0: arr /= total`, de modo que o vetor nulo passa sem erro: o
+metodo devolve zeros em silencio.
+
+O corte e da decomposicao, nao do conjunto. No mesmo ajuste, o `GACC` --
+a formulacao generalizada, multiclasse por construcao -- da **0 de 400**
+nulos, e o `ACC` da QuaPy e o da QuantificationLib concluem normalmente.
+Entre os de limiar, `MAX`, `MS`, `MS2` e `X` tambem concluem: escolhem um
+limiar com separacao maior, onde `cc_k` nao chega a zerar.
+
+O classificador deste conjunto ajuda a anular, mas nao e a causa. O
+`classifier_pipeline` e `plain` (Secao 10), sem padronizacao, e aqui os
+atributos vao de -1 a 843 000: a regressao logistica **nao converge** em
+1 000 iteracoes e termina com acuracia de 0,4251 contra 0,4125 da classe
+majoritaria. Com `--scaled-classifier` ela converge em 0,4 s em vez de
+6,9 s e sobe para 0,4676. Refazendo so estas combinacoes assim
+(`--run-id sens_escalado`):
+
+| metodo | sem padronizar | com padronizar |
+|---|---|---|
+| `ACC` | 180 de 400 nulas | **134 de 400 nulas** |
+| `TAC` | 180 de 400 nulas | **134 de 400 nulas** |
+| `T50` | 24 de 400 nulas | 0 nulas, MAE 0,231 a 0,177 |
+| `GACC` | 0 nulas, MAE 0,286 a 0,282 | 0 nulas, MAE 0,277 a 0,243 |
+
+Ou seja: padronizar conserta o `T50`, melhora um pouco o erro de todos --
+e **nao resolve o `ACC` nem o `TAC`**, que continuam anulando um terco das
+amostras com um classificador convergido. O truncamento antes da combinacao
+e o que basta para zerar o vetor; o classificador ruim so aumenta a conta.
+Como ele e o mesmo para as quatro bibliotecas, a comparacao continua justa:
+a diferenca e que as outras tres degradam e a mlquantify anula.
+
 Dois contrastes valem a discussao de Q1:
 
 * **mlquantify e QuaPy completam `HDx` onde as outras duas nao completam.**
@@ -698,6 +790,7 @@ count_loc.py        contagem de linhas de codigo dos scripts de uso (Q3)
 clean_ledger.py     apaga medidas contaminadas por suspensao da maquina
 clean_pressure.py   apaga falhas de alocacao causadas por falta de RAM
 clean_invalid.py    apaga combinacoes reprovadas por amostra invalida isolada
+clean_schema.py     realinha parciais gravados antes de uma coluna nova existir
 ```
 
 Os tres `clean_*.py` sao a mesma ideia: apagam do ledger so as combinacoes

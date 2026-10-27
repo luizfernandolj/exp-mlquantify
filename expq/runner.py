@@ -124,13 +124,34 @@ SAMPLE_COLUMNS = [
 ]
 
 
-def _append_rows(path: Path, columns: list[str], rows: list[dict]) -> None:
+#: Grupos de colunas acrescentados ao ``summary.csv`` com a execucao final ja
+#: em andamento, do mais recente para o mais antigo. O numero de campos de uma
+#: linha diz sob qual esquema ela foi gravada, e e assim que ``_realign`` a le
+#: sem deslocar nada. Ao acrescentar colunas novas, registre-as aqui.
+SUMMARY_ANTERIORES = (
+    ("n_amostras_descartadas", "amostras_descartadas_total", "motivo_descarte"),
+    ("cpu_total_s", "medida_suspeita"),
+)
+
+
+def _esquemas(columns: list[str], anteriores: tuple) -> dict[int, list[str]]:
+    """Mapa ``{numero de campos: nomes}`` do esquema atual e dos anteriores."""
+    esquemas = {len(columns): list(columns)}
+    atual = list(columns)
+    for grupo in anteriores:
+        atual = [c for c in atual if c not in grupo]
+        esquemas.setdefault(len(atual), list(atual))
+    return esquemas
+
+
+def _append_rows(path: Path, columns: list[str], rows: list[dict],
+                 anteriores: tuple = ()) -> None:
     if not rows:
         return
     path.parent.mkdir(parents=True, exist_ok=True)
     new = not path.exists()
     if not new:
-        _realign(path, columns)
+        _realign(path, columns, anteriores)
     with path.open("a", newline="", encoding="utf-8") as fh:
         writer = csv.DictWriter(fh, fieldnames=columns, extrasaction="ignore")
         if new:
@@ -139,19 +160,36 @@ def _append_rows(path: Path, columns: list[str], rows: list[dict]) -> None:
         fh.flush()
 
 
-def _realign(path: Path, columns: list[str]) -> None:
+def _realign(path: Path, columns: list[str], anteriores: tuple = ()) -> None:
     """Reescreve o arquivo com as colunas atuais, se o cabecalho envelheceu.
 
     Um arquivo parcial gravado por uma versao anterior tem o cabecalho de
     entao. Acrescentar linhas novas a ele escreveria os valores na ordem
     nova sob o cabecalho velho, deslocando as colunas sem erro nenhum. Como
     os parciais sao pequenos, o arquivo e simplesmente reescrito.
+
+    As linhas sao lidas pela posicao, e nao pelo cabecalho: um parcial pode
+    ter linhas de esquemas diferentes, se recebeu linhas novas antes de haver
+    o realinhamento. O numero de campos da linha escolhe o esquema em
+    ``anteriores``; linha de tamanho desconhecido interrompe a gravacao, para
+    nao transformar um desalinhamento visivel em valores trocados em silencio.
     """
+    esquemas = _esquemas(columns, anteriores)
     with path.open(newline="", encoding="utf-8") as fh:
-        reader = csv.DictReader(fh)
-        if reader.fieldnames == columns:
-            return
-        antigas = list(reader)
+        linhas = list(csv.reader(fh))
+    if not linhas:
+        return
+    if linhas[0] == list(columns) and all(len(l) == len(columns) for l in linhas[1:]):
+        return
+
+    antigas = []
+    for n, linha in enumerate(linhas[1:], 2):
+        nomes = esquemas.get(len(linha))
+        if nomes is None:
+            raise ValueError(
+                f"{path.name}: linha {n} tem {len(linha)} campos, que nao "
+                f"correspondem a nenhum esquema conhecido {sorted(esquemas)}")
+        antigas.append(dict(zip(nomes, linha)))
     with path.open("w", newline="", encoding="utf-8") as fh:
         writer = csv.DictWriter(fh, fieldnames=columns, extrasaction="ignore")
         writer.writeheader()
@@ -497,7 +535,7 @@ def run_job(cfg: Config, dataset_row: dict, library: str, done: set,
             status, error = "erro", f"{type(exc).__name__}: {exc}"[:300]
             traceback.print_exc()
 
-        _append_rows(summary_path, SUMMARY_COLUMNS, summary_rows)
+        _append_rows(summary_path, SUMMARY_COLUMNS, summary_rows, SUMMARY_ANTERIORES)
         _append_rows(samples_path, SAMPLE_COLUMNS, sample_rows)
         ledger_entry(cfg, dataset_id=dataset_id, library=library,
                      method=spec.canonical, status=status,
