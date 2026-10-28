@@ -180,12 +180,15 @@ def register(spec: MethodSpec) -> MethodSpec:
 
 
 def _mlq(canonical, family, module, cls_name, *, binary_only=False,
-         needs_classifier=True, group="core", aliases=(), notes=""):
+         needs_classifier=True, group="core", aliases=(), notes="", kwargs=None):
+    kwargs = kwargs or {}
+
     def build(ctx: Ctx):
         import importlib
 
         cls = getattr(importlib.import_module("mlquantify." + module), cls_name)
-        prot = _protocolo(cls, ctx)
+        prot = dict(kwargs)
+        prot.update(_protocolo(cls, ctx))
         return cls(ctx.make_clf(), **prot) if needs_classifier else cls(**prot)
 
     return register(MethodSpec(
@@ -213,9 +216,14 @@ _mlq("MLPE", "verossimilhanca", "likelihood", "MLPE",
      notes="linha de base trivial de Hassan, Maletzke e Batista (2021)")
 _mlq("EMQ", "verossimilhanca", "likelihood", "EMQ")
 _mlq("CDE", "verossimilhanca", "likelihood", "CDE")
-_mlq("HDy", "casamento de distribuicoes", "matching", "HDy", binary_only=True)
+_mlq("HDy", "casamento de distribuicoes", "matching", "HDy", binary_only=True,
+     notes="varre [10, 20, ..., 110] e toma a mediana das estimativas, que e "
+           "a definicao do metodo e o mesmo que a quapy faz; nao mexido")
 _mlq("GHDy", "casamento de distribuicoes", "matching", "GHDy")
-_mlq("DyS", "casamento de distribuicoes", "matching", "DyS", binary_only=True)
+_mlq("DyS", "casamento de distribuicoes", "matching", "DyS", binary_only=True,
+     kwargs={"bins_size": DEFAULT_BINS},
+     notes="intervalos fixos em DEFAULT_BINS para casar com a quapy; o "
+           "padrao da biblioteca varre [2, 4, ..., 20, 30]")
 _mlq("SORD", "casamento de distribuicoes", "matching", "SORD", binary_only=True)
 _mlq("SMM", "casamento de distribuicoes", "matching", "SMM", binary_only=True)
 _mlq("KDEyML", "casamento de distribuicoes", "matching", "KDEyML")
@@ -224,7 +232,10 @@ _mlq("KDEyCS", "casamento de distribuicoes", "matching", "KDEyCS")
 _mlq("GKDEyML", "casamento de distribuicoes", "matching", "GKDEyML")
 _mlq("EDy", "casamento de distribuicoes", "matching", "EDy")
 _mlq("MMD", "casamento de distribuicoes", "matching", "MMD_RKHS", needs_classifier=False)
-_mlq("HDx", "nao agregativo", "matching", "HDx", needs_classifier=False)
+_mlq("HDx", "nao agregativo", "matching", "HDx", needs_classifier=False,
+     kwargs={"bins_size": [DEFAULT_BINS]},  # valida array-like, nao int
+     notes="intervalos fixos em DEFAULT_BINS, que e o valor das outras "
+           "tres; o padrao da biblioteca varre [2, 4, ..., 20, 30]")
 _mlq("GHDx", "nao agregativo", "matching", "GHDx", needs_classifier=False)
 _mlq("EDx", "nao agregativo", "matching", "EDx", needs_classifier=False)
 _mlq("PWK", "vizinhos e arvores", "neighbors", "PWK", needs_classifier=False)
@@ -323,15 +334,25 @@ _quapy("MLPE", "verossimilhanca", "non_aggregative",
        "MaximumLikelihoodPrevalenceEstimation", needs_classifier=False)
 _quapy("EMQ", "verossimilhanca", "aggregative", "EMQ")
 _quapy("HDy", "casamento de distribuicoes", "aggregative", "HDy", binary_only=True)
-_quapy("DyS", "casamento de distribuicoes", "aggregative", "DyS", binary_only=True)
+_quapy("DyS", "casamento de distribuicoes", "aggregative", "DyS",
+       binary_only=True,
+       kwargs={"n_bins": DEFAULT_BINS, "divergence": "topsoe"},
+       notes="divergencia de Topsoe, a da definicao do metodo e a que a "
+             "mlquantify usa; o padrao da quapy e Hellinger")
 _quapy("SMM", "casamento de distribuicoes", "aggregative", "SMM", binary_only=True)
 _quapy("KDEyML", "casamento de distribuicoes", "aggregative", "KDEyML")
 _quapy("KDEyHD", "casamento de distribuicoes", "aggregative", "KDEyHD")
 _quapy("KDEyCS", "casamento de distribuicoes", "aggregative", "KDEyCS")
-_quapy("EDy", "casamento de distribuicoes", "aggregative", "EDy")
+_quapy("EDy", "casamento de distribuicoes", "aggregative", "EDy",
+       kwargs={"distance": "euclidean"},
+       notes="distancia euclidiana, como nas outras tres; o padrao da "
+             "quapy e manhattan")
 _quapy("HDx", "nao agregativo", "non_aggregative", "DMx", needs_classifier=False,
        notes="DMx com divergencia de Hellinger e o HDx")
-_quapy("EDx", "nao agregativo", "non_aggregative", "EDx", needs_classifier=False)
+_quapy("EDx", "nao agregativo", "non_aggregative", "EDx",
+       needs_classifier=False, kwargs={"distance": "euclidean"},
+       notes="distancia euclidiana, como nas outras tres; o padrao da "
+             "quapy e manhattan")
 _quapy("README", "nao agregativo", "non_aggregative", "ReadMe",
        needs_classifier=False, group="text",
        notes="exige matriz binaria de atributos; nao se aplica a dados tabulares")
@@ -398,6 +419,13 @@ for _name in ("QuaNet", "HistNetQ", "GMNet"):
 # ===========================================================================
 
 
+def _euclidean(X, Y):
+    """Distancia euclidiana para a QuantificationLib, que exige um callable."""
+    from sklearn.metrics.pairwise import euclidean_distances
+
+    return euclidean_distances(X, Y)
+
+
 def _qlib_cv(ctx: Ctx):
     from quantificationlib.estimators.cross_validation import CV_estimator
     from sklearn.model_selection import StratifiedKFold
@@ -407,8 +435,8 @@ def _qlib_cv(ctx: Ctx):
 
 
 def _qlib(canonical, family, module, cls_name, *, needs_train=True,
-          binary_only=False, needs_classifier=True, group="core", aliases=(),
-          notes="", kwargs=None):
+          train_cv=True, binary_only=False, needs_classifier=True,
+          group="core", aliases=(), notes="", kwargs=None):
     kwargs = kwargs or {}
 
     def _cls():
@@ -430,8 +458,12 @@ def _qlib(canonical, family, module, cls_name, *, needs_train=True,
         if not needs_classifier:
             q = cls(**kwargs)
         elif needs_train:
-            # MANUAL: estimador validado cruzadamente para a distribuicao de treino
-            q = cls(estimator_train=_qlib_cv(ctx), estimator_test=ctx.make_clf(), **kwargs)
+            # MANUAL: a classe exige os dois estimadores separados. O de treino
+            # e validado cruzadamente, que e a forma documentada; o EMQ e a
+            # excecao (``train_cv=False``), porque nas outras tres bibliotecas
+            # ele le os escores do classificador treinado na particao inteira.
+            treino = _qlib_cv(ctx) if train_cv else ctx.make_clf()
+            q = cls(estimator_train=treino, estimator_test=ctx.make_clf(), **kwargs)
         else:
             q = cls(estimator_test=ctx.make_clf(), **kwargs)
         if binary_only and ctx.is_multiclass:
@@ -464,10 +496,21 @@ _qlib("ACC", "contagem ajustada", "baselines.ac", "AC", aliases=("GACC",),
       notes="na multiclasse a biblioteca resolve por minimizacao de distancia (GACC)")
 _qlib("PACC", "contagem ajustada", "baselines.ac", "PAC", aliases=("GPACC",))
 _qlib("FM", "contagem ajustada", "multiclass.friedman", "FriedmanME")
-_qlib("EMQ", "verossimilhanca", "multiclass.em", "EM")
-_qlib("HDy", "casamento de distribuicoes", "multiclass.df", "HDy")
+_qlib("EMQ", "verossimilhanca", "multiclass.em", "EM", train_cv=False,
+      notes="escores do classificador treinado na particao inteira, como "
+            "nas outras tres; a classe exige o estimador de treino assim "
+            "mesmo")
+_qlib("HDy", "casamento de distribuicoes", "multiclass.df", "HDy",
+      notes="um unico numero de intervalos (8, largura igual). A "
+            "definicao do metodo varre intervalos e toma a mediana das "
+            "estimativas, que e o que a mlquantify e a quapy fazem; aqui "
+            "n_bins e escalar e nao aceita a varredura, entao esta "
+            "coluna e uma variante de intervalo fixo")
 _qlib("SORD", "casamento de distribuicoes", "binary.emd", "SORDy", binary_only=True)
-_qlib("EDy", "casamento de distribuicoes", "multiclass.energy", "EDy")
+_qlib("EDy", "casamento de distribuicoes", "multiclass.energy", "EDy",
+      kwargs={"distance": _euclidean},
+      notes="distancia euclidiana, como nas outras tres; o padrao da "
+            "biblioteca e manhattan")
 _qlib("HDx", "nao agregativo", "multiclass.df", "HDX", needs_train=False,
       needs_classifier=False)
 _qlib("EDx", "nao agregativo", "multiclass.energy", "EDX", needs_train=False,

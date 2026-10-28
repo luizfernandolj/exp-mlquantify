@@ -816,22 +816,81 @@ Verificado de ponta a ponta em duas execucoes completas do harness sobre
 `GACC` da mlquantify e o da qunfold passaram a coincidir digito a digito
 (0,04400 e 0,03016), o que antes nao acontecia.
 
-#### O que continua diferente
+#### Os parametros do metodo
 
-O alinhamento acima cobre a geracao dos escores. Tres diferencas de
-parametro **do metodo** continuam em pe, porque escolher um valor comum e
-decisao de metodo, nao de protocolo. Medidas em `wine.csv` (3 classes) com
-o protocolo ja alinhado:
+O alinhamento acima cobre a geracao dos escores. Faltavam os parametros do
+proprio metodo, que ficaram assim.
 
-| Parametro | Como esta | Efeito medido |
+**Distancia do `EDx` e do `EDy`.** A QuaPy usava `manhattan` e as outras
+tres `euclidean`. Passou a ser `euclidean` nas quatro. Na
+QuantificationLib o parametro exige um callable, nao uma string, daqui o
+`_euclidean` em `expq/registry.py`. O `EDx` ficou **identico nas quatro**
+(MAE 0,1103 em `wine.csv`, 0,0870 em `wine.1.csv`); antes a QuaPy dava
+0,076 contra 0,087 das outras.
+
+O `EDy` nao fechou: a mlquantify e a QuantificationLib coincidem (0,0168 e
+0,0490), a QuaPy da 0,0232 e a qunfold 0,0183. Com a distancia e as dobras
+agora iguais, o que resta e **formulacao**, nao configuracao -- e esse e
+justamente o tipo de diferenca que Q1 deve medir.
+
+**Escores do `EMQ`.** A QuantificationLib era a unica a passar os escores
+por validacao cruzada; a mlquantify, a QuaPy (`val_split=None`) e a qunfold
+leem o classificador treinado na particao inteira. O `estimator_train` da
+QuantificationLib passou a ser o classificador simples (`train_cv=False`).
+As quatro agora dao o mesmo numero (0,0172 e 0,0527). A classe continua
+exigindo o argumento, entao `configuracoes_manuais` nao muda.
+
+**Intervalos do `HDx`.** A mlquantify varria `[2, 4, ..., 20, 30]`; as
+outras tres fixam 8. Passou a fixar 8 tambem -- em lista, `[8]`, porque a
+classe valida `bins_size` como array-like e recusa inteiro. Custa quase
+nada a ela: MAE 0,1795 para 0,1802 em `wine.csv` e 0,2371 para 0,2440 em
+`wine.1.csv`. O que sobra e diferenca de metodo: 0,244 na mlquantify contra
+0,049 na QuaPy em `wine.1.csv` nao e mais efeito de configuracao.
+
+**Intervalos e divergencia do `DyS`.** A mlquantify varria
+`[2, 4, ..., 20, 30]` com Topsoe; a QuaPy fixava 8 com Hellinger. Agora as
+duas usam 8 intervalos e Topsoe, que e a divergencia da definicao do
+metodo. A troca de divergencia quase nao mexe no resultado da QuaPy (AE
+0,2626 para 0,2654 em `wine.csv`): o que a afunda ali e a decomposicao
+um-contra-todos, nao a divergencia.
+
+#### O `HDy` nao da para igualar, e o motivo importa
+
+Era o que parecia pesar mais, e acabou sendo o contrario do esperado.
+Medido:
+
+| Biblioteca | Intervalos | Agregacao |
 | --- | --- | --- |
-| intervalos do `HDy` | mlquantify varre `[2, 4, ..., 20, 30]` e escolhe; QuantificationLib fixa 8 em largura igual; qunfold fixa 8; QuaPy varre os seus | MAE 0,043 / 0,019 / -- / 0,222 |
-| distancia do `EDx` e `EDy` | QuaPy usa `manhattan`; as outras tres, `euclidean` | `EDx`: 0,076 na QuaPy contra 0,110 nas outras tres |
-| escores do `EMQ` | QuantificationLib usa `CV_estimator`; mlquantify, QuaPy (`val_split=None`) e qunfold treinam na particao inteira | MAE 0,0172 nas quatro, diferenca na 4a casa |
+| mlquantify | `[10, 20, ..., 110]` | mediana das estimativas |
+| QuaPy | `[10, 20, ..., 110]` | mediana das estimativas |
+| QuantificationLib | 8, largura igual | estimativa unica |
 
-A do `HDy` e a que mais pesa: varrer intervalos e escolher o melhor nao e o
-mesmo experimento que fixar oito. A do `EMQ` quase nao aparece. A do `EDx`
-e `EDy` e pequena no metodo mas sistematica.
+**A mlquantify e a QuaPy ja estavam iguais**, e nas duas isso e a definicao
+publicada do metodo: Gonzalez-Castro et al. (2013) varrem de 10 a 110 em
+passos de 10 e tomam a mediana das onze estimativas. Nenhuma das duas
+precisou de ajuste.
+
+Nenhuma das duas tambem *aceita* ajuste. A QuaPy fixa
+`self.bins = np.linspace(10, 110, 11)` dentro do `aggregation_fit`, sem
+parametro no construtor -- a classe `DMy`, que tem `nbins`, nao serve de
+substituta porque e multiclasse nativa, ou seja, calcula a formulacao
+generalizada e nao o `HDy` binario. E o `n_bins` da QuantificationLib e
+escalar: nao ha como pedir a varredura.
+
+Entao a coluna `HDy` da QuantificationLib e uma **variante de intervalo
+fixo**, nao o mesmo metodo com outro parametro, e fica registrado assim nas
+notas do metodo. Em dados binarios, onde a decomposicao nao entra, a
+mlquantify e a QuaPy caem juntas (0,1200 e 0,1187 em `wine.1.csv`) e a
+QuantificationLib se separa (0,0825) -- o efeito do intervalo fixo, isolado.
+
+O mesmo vale para o `GHDy` e o `GHDx`: a mlquantify nao expoe o numero de
+intervalos nessas duas classes e a qunfold exige, entao as duas colunas nao
+sao comparaveis no parametro.
+
+Com protocolo e parametros alinhados, duas execucoes completas do harness
+sobre `wine.csv` e `wine.1.csv` -- onze metodos, quatro bibliotecas, 64
+combinacoes -- sairam identicas em `mae`, `mrae`, `mse` e `nkld_medio`, sem
+nenhum erro.
 
 ### Limitacoes de escala observadas na execucao
 
