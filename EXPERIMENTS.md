@@ -712,6 +712,7 @@ discussao das questoes Q1 e Q3. As versoes sao as do `requirements.txt`.
 | mlquantify 0.5.1 | ainda sem os metodos ELM e neurais (outro branch), por isso o grupo padrao os deixa de fora |
 | QuaPy | nao expoe o embaralhamento das dobras: `val_split` inteiro cai em `cross_val_predict(cv=5)`, que usa `StratifiedKFold(shuffle=False)` |
 | qunfold | todo metodo sorteia o ponto de partida do otimizador e, sem `seed`, nao repete os numeros entre execucoes |
+| mlquantify 0.5.1 | o `MLPE` exige um classificador que a propria documentacao diz nao influenciar a estimativa, e valida-o cruzadamente: 6 treinamentos jogados fora por combinacao (ver abaixo) |
 
 ### Os parametros nao eram os mesmos entre as bibliotecas
 
@@ -891,6 +892,50 @@ Com protocolo e parametros alinhados, duas execucoes completas do harness
 sobre `wine.csv` e `wine.1.csv` -- onze metodos, quatro bibliotecas, 64
 combinacoes -- sairam identicas em `mae`, `mrae`, `mse` e `nkld_medio`, sem
 nenhum erro.
+
+### O custo do MLPE na mlquantify
+
+O `MLPE` e a linha de base trivial: sob a hipotese de nenhum desvio, a
+estimativa de maxima verossimilhanca da prevalencia de teste e a propria
+prevalencia de treinamento, de modo que o metodo ignora a amostra de teste.
+Nas duas bibliotecas que o tem, ele devolve o mesmo numero -- a diferenca
+maxima de MAE em 134 conjuntos e 5,6 x 10^-17, o epsilon da maquina. O custo
+de chegar nele nao e o mesmo.
+
+| Medida (mediana) | mlquantify | QuaPy | Razao |
+| --- | --- | --- | --- |
+| tempo de treinamento | 0,2752 s | 0,0002 s | **1 376x** |
+| tempo de estimacao (400 amostras) | 0,0076 s | 0,0040 s | 1,9x |
+| tempo total | 0,2828 s | 0,0042 s | **67x** |
+| memoria no treinamento | 0,854 MB | 0,029 MB | 30x |
+
+O `predict` nao e o problema: ele devolve `train_priors_` direto, e as 400
+amostras custam 7,6 ms. **Tudo esta no `fit`.** A classe fica na hierarquia
+agregativa (`SoftPredictionMixin`, `AggregativeMixin`,
+`LikelihoodComposeQuantifier`) e passa pelo caminho comum de gerar escores
+fora da amostra. Contado com um classificador instrumentado: **6
+treinamentos e 5 chamadas a `predict_proba` por combinacao**, cinco dobras
+mais o reajuste na particao inteira, e nada disso entra na conta. Com `cv=2`
+sao 3 treinamentos, o que confirma que o custo e a validacao cruzada.
+
+A propria documentacao da classe diz o que acontece: o `estimator` e
+"kept for API compatibility with the aggregative quantifiers; it does **not**
+influence the estimate", e `cv` e descrito como as dobras usadas ao treinar
+"the (unused) estimator".
+
+Nao e artefato do harness. `MLPE()` sem classificador e recusado:
+
+    InvalidParameterError: The quantifier MLPE requires an estimator.
+
+Entao nao ha como registrar o metodo sem pagar a validacao cruzada, e a
+medida fica como esta: o numero que o experimento reporta e o custo real de
+usar a linha de base trivial da biblioteca. A QuaPy resolve o mesmo problema
+contando rotulos, sem classificador.
+
+E o unico lugar do experimento em que a mlquantify perde por tres ordens de
+grandeza, e perde no metodo mais simples que existe. Vale como item de
+correcao na biblioteca -- tornar o `estimator` opcional no `MLPE`, ou nao
+cruzar validacao quando ele nao e usado -- e nao como ajuste do protocolo.
 
 ### Limitacoes de escala observadas na execucao
 
