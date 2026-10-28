@@ -31,6 +31,89 @@ CV_FOLDS = 5
 DEFAULT_BINS = 8
 
 
+# ---------------------------------------------------------------------------
+# Protocolo comum de geracao dos escores de treinamento
+#
+# As quatro bibliotecas resolvem a mesma etapa -- obter predicoes fora da
+# amostra para treinar a funcao de agregacao -- com parametros diferentes e,
+# em duas delas, sem semente. Medido nas versoes instaladas:
+#
+#   biblioteca         dobras  estratifica  embaralha  semente
+#   mlquantify              5      sim         nao       nao
+#   quapy                   5      sim         nao       nao
+#   quantificationlib       5      sim         sim       sim
+#   qunfold                 5      sim         sim       sim
+#
+# O numero de dobras ja coincidia (na mlquantify ``cv=None`` cai em cinco,
+# na quapy ``val_split=5`` e o padrao). O que nao coincidia era o
+# embaralhamento -- e portanto a dependencia da ordem das linhas do arquivo
+# -- e a semente. Daqui em diante toda construcao documentada
+# (``build_adapted``) recebe os mesmos valores, nos nomes de cada
+# biblioteca:
+#
+#   cv / val_split      = CV_FOLDS            cinco dobras
+#   stratified          = True                dobras estratificadas por classe
+#   shuffle             = True                embaralha antes de dividir
+#   random_state / seed = ctx.random_state     a mesma semente em tudo
+#
+# Com isso a mlquantify, a quantificationlib e a qunfold passam a montar o
+# mesmo ``StratifiedKFold(n_splits=5, shuffle=True, random_state=42)``, ou
+# seja, dobras identicas. A quapy e a excecao: ela nao expoe o
+# embaralhamento, porque ``val_split`` inteiro cai em
+# ``cross_val_predict(cv=5)``, que usa ``StratifiedKFold(shuffle=False)``.
+# Por isso a particao de treinamento ja chega embaralhada do ``split`` em
+# expq/protocol.py -- sobre linhas em ordem aleatoria, dobras sem
+# embaralhamento sao dobras sorteadas, e nenhuma biblioteca depende mais da
+# ordem do arquivo.
+#
+# Isto e protocolo do experimento, nao configuracao exigida pela
+# biblioteca: vale igual para as quatro e por isso NAO entra em
+# ``manual_configs``, que segue medindo o que cada uma cobra para funcionar
+# (Q3). A forma direta (``build_naive``), que e a sonda de Q3, continua sem
+# nenhum destes valores: ela existe justamente para medir o padrao da
+# biblioteca.
+# ---------------------------------------------------------------------------
+
+
+def _parametros(cls) -> dict:
+    """Parametros do construtor de ``cls``, ou vazio se nao der para olhar."""
+    import inspect
+
+    try:
+        return dict(inspect.signature(cls.__init__).parameters)
+    except (TypeError, ValueError):
+        return {}
+
+
+def _protocolo(cls, ctx: Ctx) -> dict:
+    """Valores do protocolo comum, nos nomes que ``cls`` entende.
+
+    Filtrar pela assinatura evita uma lista de excecoes por metodo: o CC nao
+    gera escores fora da amostra, a HDx nao tem classificador, a EMQ da
+    quapy nao tem ``stratified``. Cada classe recebe o que sabe usar.
+
+    O numero de dobras e o unico valor com ressalva. Na mlquantify
+    ``cv=None`` significa *use cinco*, e escrever cinco nao muda nada. Na
+    quapy ``val_split=None`` significa *sem predicoes fora da amostra*: a
+    PCC e a EMQ treinam na particao inteira de proposito, e sobrescrever
+    isso trocaria o metodo em vez de alinha-lo. Por isso ``val_split`` so e
+    escrito onde a classe ja o traz como inteiro.
+    """
+    ps = _parametros(cls)
+    valores = {"stratified": True, "shuffle": True,
+               "random_state": ctx.random_state, "seed": ctx.random_state}
+    if "cv" in ps:
+        valores["cv"] = CV_FOLDS
+    if "val_split" in ps and ps["val_split"].default is not None:
+        valores["val_split"] = CV_FOLDS
+    return {k: v for k, v in valores.items() if k in ps}
+
+
+def descricao_protocolo(random_state: int) -> str:
+    """Rotulo do protocolo de escores, gravado junto de cada medida."""
+    return "cv{}-estratificado-embaralhado-semente{}".format(CV_FOLDS, random_state)
+
+
 @dataclass
 class Ctx:
     """Contexto entregue a cada construtor de metodo."""
@@ -102,7 +185,8 @@ def _mlq(canonical, family, module, cls_name, *, binary_only=False,
         import importlib
 
         cls = getattr(importlib.import_module("mlquantify." + module), cls_name)
-        return cls(ctx.make_clf()) if needs_classifier else cls()
+        prot = _protocolo(cls, ctx)
+        return cls(ctx.make_clf(), **prot) if needs_classifier else cls(**prot)
 
     return register(MethodSpec(
         canonical=canonical, family=family, library="mlquantify",
@@ -195,17 +279,20 @@ def _quapy(canonical, family, module, cls_name, *, binary_only=False,
            needs_classifier=True, group="core", aliases=(), notes="", kwargs=None):
     kwargs = kwargs or {}
 
-    def _make(ctx: Ctx):
+    def _make(ctx: Ctx, protocolo: bool):
         import importlib
 
         cls = getattr(importlib.import_module("quapy.method." + module), cls_name)
-        return cls(ctx.make_clf(), **kwargs) if needs_classifier else cls(**kwargs)
+        extra = dict(kwargs)
+        if protocolo:
+            extra.update(_protocolo(cls, ctx))
+        return cls(ctx.make_clf(), **extra) if needs_classifier else cls(**extra)
 
     def build_naive(ctx: Ctx):
-        return _make(ctx)
+        return _make(ctx, protocolo=False)
 
     def build_adapted(ctx: Ctx):
-        q = _make(ctx)
+        q = _make(ctx, protocolo=True)
         if binary_only and ctx.is_multiclass:
             from quapy.method.base import newOneVsAll
 
@@ -464,7 +551,10 @@ def _qunfold(canonical, family, cls_name, *, needs_cv=True, needs_classifier=Tru
             args.append(_qf_cv(ctx) if needs_cv else ctx.make_clf())
         if needs_bins:
             args.append(DEFAULT_BINS)  # MANUAL: n_bins nao tem valor padrao
-        return cls(*args)
+        # Todo metodo da qunfold sorteia o ponto de partida do otimizador em
+        # ``minimize``; sem ``seed`` cada uma das 400 amostras parte de um
+        # ponto diferente e a execucao nao se repete.
+        return cls(*args, **_protocolo(cls, ctx))
 
     manual = (1 if (needs_cv and needs_classifier) else 0) + (1 if needs_bins else 0)
     return register(MethodSpec(

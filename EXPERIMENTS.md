@@ -295,7 +295,9 @@ combinacoes das planejadas entraram na conta.
 amostras deste tamanho entraram nas medidas), `n_amostras_descartadas`
 (quantas deste tamanho foram descartadas), `amostras_descartadas_total`
 (descartadas na combinacao inteira), `motivo_descarte`, `n_prevalencias`,
-`semente`, `proporcao_teste`.
+`semente`, `proporcao_teste`, `protocolo_escores` (sob qual protocolo de
+geracao dos escores de treinamento a linha foi medida; vazia nas linhas
+gravadas antes do alinhamento da secao 11).
 
 **Q1, erro** — `mae`, `mrae`, `mse`, `nkld_medio`, mais desvio padrao,
 mediana, quartis e maximo de AE e RAE, e a faixa de prevalencia coberta
@@ -708,6 +710,128 @@ discussao das questoes Q1 e Q3. As versoes sao as do `requirements.txt`.
 | mlquantify 0.5.1 | aplica a decomposicao multiclasse sozinha, sem configuracao; nao exigiu nenhum ajuste |
 | mlquantify 0.5.1 | nao traz `PACC` como classe propria: o equivalente e o `GPACC`, que coincide com o `PACC` da QuaPy |
 | mlquantify 0.5.1 | ainda sem os metodos ELM e neurais (outro branch), por isso o grupo padrao os deixa de fora |
+| QuaPy | nao expoe o embaralhamento das dobras: `val_split` inteiro cai em `cross_val_predict(cv=5)`, que usa `StratifiedKFold(shuffle=False)` |
+| qunfold | todo metodo sorteia o ponto de partida do otimizador e, sem `seed`, nao repete os numeros entre execucoes |
+
+### Os parametros nao eram os mesmos entre as bibliotecas
+
+As quatro resolvem a mesma etapa -- obter predicoes fora da amostra para
+treinar a funcao de agregacao -- e cada uma a resolvia com parametros
+proprios. Medido nas versoes instaladas, antes do alinhamento:
+
+| Biblioteca | Dobras | Estratifica | Embaralha | Semente |
+| --- | --- | --- | --- | --- |
+| mlquantify | 5 | sim | **nao** | **nao** |
+| QuaPy | 5 | sim | **nao** | **nao** |
+| QuantificationLib | 5 | sim | sim | sim |
+| qunfold | 5 | sim | sim | sim |
+
+O numero de dobras ja coincidia, e nao por acaso: na mlquantify `cv=None`
+cai em cinco (`base_aggregative.py`, `if cv is None: cv = 5`) e na QuaPy
+`val_split=5` e o padrao das classes que usam predicoes fora da amostra. O
+que nao coincidia era o **embaralhamento** -- e com ele a dependencia da
+ordem das linhas do arquivo -- e a **semente**.
+
+Duas consequencias, as duas medidas:
+
+**A ordem do arquivo entrava na conta.** A mlquantify e a QuaPy dividiam em
+dobras sem embaralhar, sobre uma particao de treinamento que o `split`
+devolvia ordenada (`np.sort`). Em arquivo agrupado por classe ou coletado em
+ordem temporal, as dobras dessas duas seguiam essa ordem enquanto as das
+outras duas eram sorteadas. Nao e ruido: e um protocolo diferente.
+
+**Tres bibliotecas tinham partes sem semente.** A pior nao e a mais obvia:
+todo metodo da qunfold sorteia o ponto de partida do otimizador
+(`methods/__init__.py`, `_rand_x0(np.random.RandomState(seed), ...)`), de
+modo que, sem `seed`, cada uma das 400 amostras partia de um ponto
+diferente. A KDEy da QuaPy faz Monte Carlo com `random_state=None`. Cinco
+execucoes da mesma celula, faixa maxima por classe:
+
+| Metodo | Antes | Depois |
+| --- | --- | --- |
+| `quapy.KDEyHD` | 4,9 x 10^-3 | 0 |
+| `qunfold.EDx` | 7,9 x 10^-4 | 0 |
+| `qunfold.EDy` | 4,4 x 10^-5 | 0 |
+| `qunfold.GHDy` | 1,4 x 10^-5 | 0 |
+| `qunfold.MMD` | 7,6 x 10^-6 | 0 |
+| `qunfold.GACC` | 3,6 x 10^-8 | 0 |
+| `mlquantify.GACC`, `mlquantify.HDy`, `quapy.ACC` | 0 | 0 |
+
+O ruido da `KDEyHD` entre execucoes era **maior que o limiar de 10^-3** com
+que Q1 conta casos equivalentes: a mesma celula rodada duas vezes podia
+mudar de lado.
+
+#### O que passou a ser escrito
+
+Toda construcao documentada (`build_adapted`) recebe os mesmos valores, nos
+nomes de cada biblioteca: `cv`/`val_split` = 5, `stratified` = True,
+`shuffle` = True, `random_state`/`seed` = a semente da execucao. O filtro e
+a assinatura do construtor (`_protocolo` em `expq/registry.py`), e nao uma
+lista de excecoes por metodo: quem nao tem o parametro nao recebe nada.
+
+Com isso a mlquantify, a QuantificationLib e a qunfold passam a montar o
+mesmo `StratifiedKFold(n_splits=5, shuffle=True, random_state=42)` -- dobras
+identicas, nao equivalentes. A QuaPy e a excecao, porque nao tem a chave do
+embaralhamento; por isso a particao de treinamento agora sai embaralhada do
+proprio `split` (`expq/protocol.py`), uma vez e com semente: sobre linhas em
+ordem aleatoria, dobras sem embaralhamento sao dobras sorteadas, e nenhuma
+biblioteca depende mais da ordem do arquivo. A particao de teste continua
+ordenada, senao o cache de amostras do UPP perderia validade.
+
+Fora do construtor sobra o que as bibliotecas leem de estado global:
+`_semear` fixa o `np.random` e o `quapy.environ['_R_SEED']` antes de cada
+celula.
+
+Uma ressalva de leitura para Q3: isto e protocolo do experimento, nao
+configuracao exigida pela biblioteca. Vale igual para as quatro e **nao**
+entra em `configuracoes_manuais`. A forma direta (`build_naive`), que e a
+sonda de Q3, continua sem nenhum desses valores -- ela existe justamente
+para medir o padrao da biblioteca.
+
+Cada linha do `summary.csv` passa a dizer sob qual protocolo foi medida, na
+coluna `protocolo_escores`. Linhas gravadas antes desta mudanca ficam com a
+coluna vazia.
+
+#### Quanto os numeros andam
+
+A mudanca de dobras desloca as estimativas, e mais do que o ruido que ela
+remove. Mesma celula, protocolo antigo contra novo, diferenca maxima por
+classe:
+
+| Metodo | Deslocamento |
+| --- | --- |
+| `mlquantify.GACC` | 1,6 x 10^-2 |
+| `mlquantify.HDy` | 1,5 x 10^-2 |
+| `quapy.KDEyHD` | 3,0 x 10^-3 |
+| `qunfold.EDx` | 1,2 x 10^-4 |
+| `quapy.ACC` | 0 |
+
+Os 1,6 x 10^-2 da mlquantify passam do limiar mais largo de Q1 (10^-2), de
+modo que resultados medidos antes e depois **nao se comparam**. Qualquer
+execucao anterior a esta mudanca precisa ser refeita.
+
+Verificado de ponta a ponta em duas execucoes completas do harness sobre
+`wine.csv` e `wine.1.csv`, sete metodos, quatro bibliotecas: as 46 linhas do
+`summary.csv` sairam identicas em `mae`, `mrae`, `mse` e `nkld_medio`. E o
+`GACC` da mlquantify e o da qunfold passaram a coincidir digito a digito
+(0,04400 e 0,03016), o que antes nao acontecia.
+
+#### O que continua diferente
+
+O alinhamento acima cobre a geracao dos escores. Tres diferencas de
+parametro **do metodo** continuam em pe, porque escolher um valor comum e
+decisao de metodo, nao de protocolo. Medidas em `wine.csv` (3 classes) com
+o protocolo ja alinhado:
+
+| Parametro | Como esta | Efeito medido |
+| --- | --- | --- |
+| intervalos do `HDy` | mlquantify varre `[2, 4, ..., 20, 30]` e escolhe; QuantificationLib fixa 8 em largura igual; qunfold fixa 8; QuaPy varre os seus | MAE 0,043 / 0,019 / -- / 0,222 |
+| distancia do `EDx` e `EDy` | QuaPy usa `manhattan`; as outras tres, `euclidean` | `EDx`: 0,076 na QuaPy contra 0,110 nas outras tres |
+| escores do `EMQ` | QuantificationLib usa `CV_estimator`; mlquantify, QuaPy (`val_split=None`) e qunfold treinam na particao inteira | MAE 0,0172 nas quatro, diferenca na 4a casa |
+
+A do `HDy` e a que mais pesa: varrer intervalos e escolher o melhor nao e o
+mesmo experimento que fixar oito. A do `EMQ` quase nao aparece. A do `EDx`
+e `EDy` e pequena no metodo mas sistematica.
 
 ### Limitacoes de escala observadas na execucao
 

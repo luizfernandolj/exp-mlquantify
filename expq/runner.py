@@ -30,7 +30,7 @@ import numpy as np
 from .config import Config
 from .metrics import (PrevalenceError, PrevalenceValueError, all_metrics,
                       normalize_prevalence, prevalence_from_labels)
-from .registry import Ctx, specs_for
+from .registry import Ctx, descricao_protocolo, specs_for
 
 
 class MethodTimeout(RuntimeError):
@@ -85,6 +85,23 @@ def make_classifier_factory(cfg: Config):
     return make
 
 
+def _semear(cfg: Config) -> None:
+    """Fixa as fontes globais de aleatoriedade antes de cada celula.
+
+    Nem toda aleatoriedade tem parametro no construtor. A quapy le a semente
+    de ``quapy.environ['_R_SEED']`` no Monte Carlo da KDEy e na selecao de
+    modelo, e sobra o estado global do numpy, que varias bibliotecas usam
+    sem dizer. Sem isto, repetir a execucao nao repete os numeros.
+    """
+    np.random.seed(cfg.random_state)
+    try:
+        import quapy
+
+        quapy.environ["_R_SEED"] = cfg.random_state
+    except Exception:  # quapy ausente nesta celula: nada a semear
+        pass
+
+
 # --------------------------------------------------------------------------
 # Colunas dos arquivos de saida
 # --------------------------------------------------------------------------
@@ -99,7 +116,7 @@ SUMMARY_COLUMNS = [
     # protocolo
     "protocolo", "tamanho_amostra", "n_amostras", "n_amostras_descartadas",
     "amostras_descartadas_total", "motivo_descarte", "n_prevalencias",
-    "semente", "proporcao_teste",
+    "semente", "proporcao_teste", "protocolo_escores",
     # situacao e esforco de uso (Q3)
     "status", "tipo_erro", "mensagem_erro", "forma_direta_ok",
     "erro_forma_direta", "usou_decomposicao_manual", "configuracoes_manuais",
@@ -129,6 +146,7 @@ SAMPLE_COLUMNS = [
 #: linha diz sob qual esquema ela foi gravada, e e assim que ``_realign`` a le
 #: sem deslocar nada. Ao acrescentar colunas novas, registre-as aqui.
 SUMMARY_ANTERIORES = (
+    ("protocolo_escores",),
     ("n_amostras_descartadas", "amostras_descartadas_total", "motivo_descarte"),
     ("cpu_total_s", "medida_suspeita"),
 )
@@ -311,6 +329,7 @@ def run_method(spec, ctx, cfg, dataset_info, X_train, y_train, X_test, y_test,
         "classe": spec.class_name, "aliases": "|".join(spec.aliases),
         "protocolo": cfg.protocol, "n_prevalencias": cfg.n_prevalences,
         "semente": cfg.random_state, "proporcao_teste": cfg.test_size,
+        "protocolo_escores": descricao_protocolo(cfg.random_state),
         "usou_decomposicao_manual": bool(spec.binary_only and ctx.is_multiclass),
         "configuracoes_manuais": spec.manual_count(ctx),
         "repeticoes_custo": cfg.cost_repeats,
@@ -323,6 +342,8 @@ def run_method(spec, ctx, cfg, dataset_info, X_train, y_train, X_test, y_test,
                      "mensagem_erro": spec.unavailable_reason,
                      "forma_direta_ok": "", "erro_forma_direta": ""})
         return [{**base, "tamanho_amostra": -1, "n_amostras": 0}], []
+
+    _semear(cfg)
 
     # --- Q3: a biblioteca aceita o uso direto, sem configuracao manual? ---
     if spec.naive_differs(ctx):

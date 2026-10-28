@@ -33,11 +33,23 @@ class Samples:
 
 
 def split(X: np.ndarray, y: np.ndarray, test_size: float, random_state: int):
-    """Divisao estratificada em duas partes (50/50 por padrao)."""
+    """Divisao estratificada em duas partes (50/50 por padrao).
+
+    A particao de treinamento sai em ordem aleatoria, nao na ordem do
+    arquivo, e isso faz parte do protocolo comum: a quapy nao expoe o
+    embaralhamento das dobras da validacao cruzada -- ``val_split`` inteiro
+    cai em ``StratifiedKFold(shuffle=False)`` --, de modo que, com as linhas
+    na ordem do arquivo, as dobras dela seguiriam essa ordem enquanto as das
+    outras tres seriam sorteadas. Embaralhar aqui, uma vez e com semente,
+    tira a ordem do arquivo da conta para todas (expq/registry.py).
+
+    A particao de teste continua ordenada: as amostras do UPP sao indices
+    sobre ela, e mexer na ordem invalidaria o cache de amostras.
+    """
     idx = np.arange(len(y))
     tr, te = train_test_split(idx, test_size=test_size, random_state=random_state,
                               stratify=y, shuffle=True)
-    return np.sort(tr), np.sort(te)
+    return tr, np.sort(te)
 
 
 def make_samples(y_test: np.ndarray, sample_sizes, n_prevalences: int,
