@@ -352,6 +352,12 @@ def run_method(spec, ctx, cfg, dataset_info, X_train, y_train, X_test, y_test,
     else:
         naive_ok, naive_err = None, ""  # forma direta e documentada coincidem
 
+    # O prazo cobre a estimativa das amostras, nao o ajuste: quem o verifica
+    # e o ``_predict_all``, entre uma amostra e a proxima. Um metodo que
+    # demora dentro do ``fit`` -- e com ``cost_repeats`` o ajuste e repetido
+    # -- so e alcancado pelo ``--job-timeout``. O relogio de CPU e proposital
+    # (ver ``_predict_all``), mas tem o avesso: ele tambem para enquanto o
+    # processo espera disco, entao sob paginacao pesada a contagem congela.
     deadline = time.process_time() + cfg.method_timeout if cfg.method_timeout else None
     t_total = time.perf_counter()
     cpu_total = time.process_time()

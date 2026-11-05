@@ -422,6 +422,34 @@ Alternativamente, limite esses conjuntos desde o inicio:
 python run_experiments.py --run-id final --max-rows 100000
 ```
 
+#### O que o `--method-timeout` nao cobre
+
+O prazo por metodo e verificado em um unico ponto: no laco que estima as
+400 amostras, entre uma amostra e a proxima. **O ajuste fica fora dele.**
+Um metodo que demora dentro do `fit` nao produz linha de `timeout`; quem o
+encerra e o `--job-timeout`, horas depois, e a combinacao fica pendente no
+ledger como se nunca tivesse sido tentada. Com `cost_repeats = 3` o ajuste
+e feito tres vezes, mais uma quarta para medir memoria, de modo que a parte
+descoberta nao e pequena para os metodos que montam matriz de distancia.
+
+O relogio e o de CPU, e isso e proposital — a maquina foi suspensa tres
+vezes nesta execucao, e um relogio de parede teria reprovado metodos
+baratos por isso. O avesso da escolha e que o tempo de CPU tambem para
+enquanto o processo espera disco: sob paginacao pesada a contagem do prazo
+congela junto com o processo que ela deveria interromper.
+
+Observado em 05/11/2026: o `EDy` da mlquantify no `healthcare.csv` comecou
+as 07:18 e a execucao inteira — processo pai e trabalhadores — morreu sem
+escrever nenhuma linha, sem dump e sem evento do sistema. A maquina seguiu
+de pe por mais de tres horas depois disso. Nao ha medicao que prove a
+causa; o que os registros mostram e que nenhum dos dois limites se aplicava
+ao ponto onde a execucao parou.
+
+A correcao seria passar o prazo tambem ao `fit`, cobrando-o num processo
+separado em vez de dentro do laco de amostras. Ficou de fora de proposito
+enquanto a execucao `final-alinhado` estava aberta: mudar o criterio de
+corte no meio tornaria heterogeneas as medidas de uma mesma execucao.
+
 ### Um nucleo por trabalhador
 
 Cada trabalhador e **preso a um nucleo logico** (`pin_cpu`, em
