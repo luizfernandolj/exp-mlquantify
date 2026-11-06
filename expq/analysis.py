@@ -75,8 +75,12 @@ def cobertura(cfg) -> dict:
             for s in specs_for(lib, groups=cfg.groups, methods=cfg.methods,
                                skip=cfg.skip_methods):
                 planejadas += 1
-    feitas = sum(1 for k in done if k.split("|")[0])
+    # As sentinelas ``__job__`` registram que o limite de job encerrou um
+    # trabalhador; elas nao sao medida de metodo e nao podem entrar na
+    # cobertura, senao ela conta como feito o que nao foi medido.
+    feitas = sum(1 for k in done if k.split("|")[-1] != "__job__")
     return {"feitas": feitas, "planejadas": planejadas,
+            "faltam": planejadas - feitas,
             "fracao": feitas / planejadas if planejadas else np.nan,
             "completa": feitas >= planejadas}
 
@@ -588,11 +592,13 @@ def respostas(cfg, tabelas: dict, cob: dict, figuras: list) -> str:
     cabecalho = [f"# Respostas de Q1, Q2 e Q3 -- execucao `{cfg.run_id}`", ""]
     if not cob["completa"]:
         cabecalho += [
-            f"> **PROVISORIO.** {cob['feitas']} das {cob['planejadas']} "
-            f"combinacoes planejadas foram medidas ({cob['fracao']:.1%}). "
-            "Os conjuntos que faltam sao os maiores do catalogo, entao as "
-            "medias de custo devem subir quando eles entrarem. Rode de novo "
-            "ao final para atualizar.", ""]
+            f"> **{cob['feitas']} das {cob['planejadas']} combinacoes "
+            f"planejadas foram medidas ({cob['fracao']:.1%}); faltam "
+            f"{cob['faltam']}.** Se a execucao ainda estiver em andamento, "
+            "este numero sobe e os resumos mudam -- rode de novo ao final. "
+            "Se ela ja terminou, as que faltam nao foram medidas por "
+            "limitacao da biblioteca ou da maquina, e a lista delas sai do "
+            "ledger, nao daqui.", ""]
     else:
         cabecalho += [f"Execucao completa: {cob['feitas']} combinacoes.", ""]
 
@@ -683,8 +689,8 @@ def run(cfg, com_figuras: bool = True, erro: str = "mae") -> dict:
 
     print(f"Analisando {cfg.run_dir} ...")
     if not cob["completa"]:
-        print(f"  PROVISORIO: {cob['feitas']} de {cob['planejadas']} "
-              f"combinacoes ({cob['fracao']:.1%})")
+        print(f"  {cob['feitas']} de {cob['planejadas']} combinacoes "
+              f"({cob['fracao']:.1%}); faltam {cob['faltam']}")
 
     tabelas = {
         "q1_equivalencia": q1_equivalencia(summary, erro),
