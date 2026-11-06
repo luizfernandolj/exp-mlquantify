@@ -1138,15 +1138,60 @@ numero de threads o resultado e deterministico: duas execucoes livres
 deram 135 identico, e a execucao de uma thread com nucleo fixo reproduz o
 ledger exatamente.
 
-Duas consequencias. A primeira e operacional: quem quiser conferir um
-numero desta execucao precisa de `OMP_NUM_THREADS=1` e nucleo fixo, nao
-basta a semente -- e o `summary.csv` ja grava a coluna `threads` por isso.
-A segunda e uma limitacao a declarar: as 9 904 medidas sao reproduziveis
-*naquele* arranjo de um nucleo por trabalhador, e **nao foi medido em
-quantos outros conjuntos do catalogo o classificador tambem deixou de
-convergir**, de modo que nao se sabe a extensao desta sensibilidade. O
-registro nao guarda a convergencia do classificador; para saber, seria
-preciso instrumenta-la e refazer.
+A primeira consequencia e operacional: quem quiser conferir um numero desta
+execucao precisa de `OMP_NUM_THREADS=1` e nucleo fixo, nao basta a semente
+-- e o `summary.csv` ja grava a coluna `threads` por isso.
+
+#### Em quantos conjuntos o classificador nao converge
+
+A segunda consequencia depende da extensao, e ela foi medida. Ajustando o
+mesmo classificador que o harness entrega as bibliotecas
+(`make_classifier_factory`, mesma particao, mesma semente, uma thread e
+nucleo fixo) em cada um dos 142 conjuntos, e lendo `n_iter_` contra o teto
+de 1 000:
+
+```
+104 de 142 conjuntos convergem
+ 38 de 142 batem o teto  (26,8%)
+```
+
+O `ConvergenceWarning` do scikit-learn concorda exatamente com o criterio
+`n_iter_ >= 1000`: 104 sem aviso e 38 com, sem um unico caso cruzado. E
+projetando nas medidas, **2 653 das 9 904 (26,8%) assentam em um
+classificador que foi interrompido antes de convergir** -- nao e um caso
+isolado do `news_popularity`, e um quarto do experimento.
+
+O que prediz a nao convergencia nao e o tamanho, e nao e so a magnitude:
+
+| Magnitude maxima do atributo | Conjuntos | Batem o teto |
+| --- | --- | --- |
+| <= 1 | 9 | 0 |
+| 1 a 10 | 34 | 0 |
+| 10 a 1 000 | 51 | 9 (17,6%) |
+| 1 000 a 100 000 | 29 | 16 (55,2%) |
+| > 100 000 | 17 | 13 (76,5%) |
+
+**Escala sem padronizacao e necessaria, mas nao suficiente.** Nenhum dos 43
+conjuntos com atributos ate 10 bate o teto -- nem o `electricity-normalized`,
+com 45 312 instancias --, o que torna a padronizacao um remedio plausivel.
+Mas magnitude grande nao condena: o `star_classification`, com atributos
+chegando a 1,4 x 10^19, **converge em 23 iteracoes**, enquanto o
+`Dermatology`, com maximo de 82, bate o teto. Entre os onze conjuntos acima
+de 50 mil instancias, tres convergem em menos de 40 iteracoes e oito batem
+o teto. Ou seja: o que decide e o condicionamento do problema, nao o
+tamanho nem a escala isoladamente, e nao ha regra simples para prever quais
+conjuntos estao expostos -- a lista tem de ser medida, como aqui.
+
+Fica entao a limitacao, agora com numero: um quarto das medidas depende do
+arranjo de threads para ser reproduzido bit a bit. **O que nao foi medido e
+se essa sensibilidade se cancela na diferenca entre bibliotecas**, que e a
+unidade de analise de Q1. O argumento de que deveria cancelar existe -- a
+configuracao do classificador e a mesma para as quatro --, mas e so um
+argumento: cada biblioteca reajusta o proprio classificador internamente
+(a mlquantify por um-contra-resto, a QuaPy pela validacao cruzada dela), de
+modo que o deslocamento nao e necessariamente identico entre elas. Medir
+isso pede reexecutar uma celula nas quatro bibliotecas com os dois arranjos
+de thread e comparar as diferencas pareadas, o que nao foi feito.
 
 Os dois sao binarios na mlquantify, e o multiclasse passa por
 um-contra-resto: cada sub-quantificador ajusta a propria regressao
