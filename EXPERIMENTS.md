@@ -1084,9 +1084,52 @@ negativas: a decomposicao um-contra-resto estima zero para todas as
 classes, e nao sobra nada para normalizar.
 
 O mecanismo foi rastreado em `news_popularity_data.csv` (39 644 instancias,
-4 classes), onde o `ACC` e o `TAC` da mlquantify devolvem o vetor nulo em
-**180 das 400 amostras** -- 81% das de `m = 10` e ainda 23% das de
-`m = 500`. Os dois sao binarios na mlquantify, e o multiclasse passa por
+4 classes), onde o `ACC` e o `TAC` da mlquantify devolvem o vetor nulo na
+maior parte das amostras pequenas. O numero depende da execucao, e vale
+registrar as tres, porque a diferenca entre elas diz algo:
+
+| Execucao | O que muda | `ACC` e `TAC` |
+| --- | --- | --- |
+| `final` | antes do alinhamento do protocolo de escores | 169 de 400 nulas |
+| `sens_escalado` | classificador padronizado | 134 de 400 nulas |
+| `final-alinhado` | a execucao de referencia | 130 de 400 nulas |
+
+Na `final-alinhado` as duas combinacoes **nao aparecem** em
+`amostras_descartadas.csv`, e nao e porque pararam de anular: com 130
+invalidas contra o limite de 20 (`MAX_INVALID_FRACTION = 0.05`), a
+combinacao inteira e reprovada e sai com `status = erro`. O descarte
+parcial e para amostra isolada; isto nao e isolado.
+
+A forma do problema por tamanho de amostra, reproduzindo a combinacao com o
+limite desarmado:
+
+| m | `ACC` e `TAC` | `T50` |
+| --- | --- | --- |
+| 10 | 80 de 100 nulas | 9 de 100 |
+| 50 | 29 de 100 | 1 de 100 |
+| 100 | 21 de 100 | 1 de 100 |
+| 500 | **5 de 100** | 0 de 100 |
+
+O `ACC` e o `TAC` dao o mesmo resultado nos quatro tamanhos, ate a sexta
+casa do MAE: nao sao dois achados, e um medido duas vezes. O efeito cai com
+o tamanho da amostra, como esperado, mas **nao desaparece**: ainda ha 5% de
+amostras anuladas em `m = 500`.
+
+Esta reproducao e deterministica -- duas execucoes dela deram numeros
+identicos --, mas soma 135 nulas contra as 130 do ledger da
+`final-alinhado`, e **essa diferenca de 5 nao esta explicada**. O codigo do
+`expq` nao mudou entre aquela medicao e a reproducao, a semeadura e a mesma
+e as amostras vem do mesmo cache. A hipotese que sobra, nao verificada, e
+que semear uma vez por metodo (`_semear` em `run_method`) nao basta para
+tornar uma combinacao reproduzivel isolada: antes da passada medida vem o
+`_probe_naive` e as `cost_repeats` repeticoes, e o estado global de
+aleatoriedade em que a passada medida comeca pode depender do que correu
+antes dela no mesmo processo -- 30 metodos na execucao real, 3 na
+reproducao. Enquanto isso nao for verificado, os numeros por tamanho acima
+descrevem a forma do problema, e o total que vale para a execucao de
+referencia e o do ledger.
+
+Os dois sao binarios na mlquantify, e o multiclasse passa por
 um-contra-resto: cada sub-quantificador ajusta a propria regressao
 logistica binaria e corrige a contagem com
 
@@ -1127,8 +1170,8 @@ majoritaria. Com `--scaled-classifier` ela converge em 0,4 s em vez de
 
 | metodo | sem padronizar | com padronizar |
 |---|---|---|
-| `ACC` | 180 de 400 nulas | **134 de 400 nulas** |
-| `TAC` | 180 de 400 nulas | **134 de 400 nulas** |
+| `ACC` | 169 de 400 nulas | **134 de 400 nulas** |
+| `TAC` | 169 de 400 nulas | **134 de 400 nulas** |
 | `T50` | 24 de 400 nulas | 0 nulas, MAE 0,231 a 0,177 |
 | `GACC` | 0 nulas, MAE 0,286 a 0,282 | 0 nulas, MAE 0,277 a 0,243 |
 
@@ -1138,6 +1181,27 @@ amostras com um classificador convergido. O truncamento antes da combinacao
 e o que basta para zerar o vetor; o classificador ruim so aumenta a conta.
 Como ele e o mesmo para as quatro bibliotecas, a comparacao continua justa:
 a diferenca e que as outras tres degradam e a mlquantify anula.
+
+O alcance disto na execucao de referencia e maior do que o caso rastreado.
+Contando no ledger as combinacoes reprovadas com motivo de soma nula:
+
+```
+20 combinacoes perdidas inteiras, todas mlquantify
+  = 20 dos 96 erros da execucao (21%)
+  = 20 dos 27 erros da mlquantify (74%)
+CDE 10 | ACC 3 | TAC 3 | MS 2 | MS2 1 | HDy 1
+```
+
+As piores sao `news_popularity | CDE` com 378 de 400 nulas, `yeast_data |
+CDE` com 347 e `customer_segmentation | CDE` com 219. Alem dessas, outras
+41 combinacoes sobreviveram com descarte parcial, somando 216 amostras
+perdidas -- tambem todas da mlquantify, contra zero das outras tres.
+
+Isso tem efeito direto em Q3. A taxa de conclusao da mlquantify e 0,9868, e
+**tres quartos dos erros que a derrubam sao este unico defeito**; sem ele a
+taxa iria para cerca de 0,9915. Ou seja, a biblioteca esta sendo penalizada
+na metrica de esforco de uso por um caso que a propria normalizacao dela
+resolveria -- ver a subsecao final desta secao.
 
 #### O `HDx` da mlquantify nao acompanha a amostra
 
@@ -1200,6 +1264,45 @@ Dois contrastes valem a discussao de Q1:
 * **A formulacao generalizada da mlquantify e mais barata que a classica
   dela mesma.** No mesmo conjunto, `GHDx` leva 194 s contra 4.815 s do
   `HDx` -- uma ordem de grandeza. Em `312_scene`, 65 s contra 1.254 s.
+
+### O que esta corrigido e nao entrou na medicao
+
+Tudo nesta secao foi medido contra a `mlquantify 0.5.1` instalada do PyPI
+(instalacao normal, nao editavel: a venv do experimento nao ve o checkout de
+desenvolvimento). Parte do que a secao relata tem correcao escrita e nao
+revisada, e o texto precisa dizer qual numero muda se ela entrar.
+
+| PR | O que muda | Afeta | Esta na 0.5.1? |
+| --- | --- | --- | --- |
+| #9 `HDx` | bordas do histograma por atributo | **erro do `HDx`** | nao |
+| #10 vetor nulo | `normalize_prevalences` devolve a uniforme no lugar de zeros | **erro e descarte de 11 metodos; 20 combinacoes perdidas** | nao |
+| #6 `MLPE` | ajusta o estimador uma vez em vez de validar cruzado | **custo do `MLPE`** (os 1 376x e 67x acima) | nao |
+| #8 `CDE` | so docstring, nenhuma linha de codigo | nada | nao |
+| #7 CI | so o workflow de teste | nada | nao |
+
+Duas verificacoes que sustentam a comparacao, e que vale registrar porque o
+harness depende da biblioteca que ele avalia:
+
+* **A geracao de amostras nao mudou.** O protocolo vem da propria
+  mlquantify (`from mlquantify.model_selection import UPP`, em
+  `expq/protocol.py`). O diff de `model_selection/_protocol.py` entre a
+  0.5.1 e o branch de desenvolvimento toca apenas o `apply_protocol`; o
+  `BaseProtocol.split`, o `APP` e o `UPP` ficam intocados, e o harness usa
+  so o `UPP(...).split()`, calculando as metricas por conta propria. As 400
+  amostras por combinacao sao as mesmas.
+* **Nada publicado depois da 0.5.1 altera comportamento.** O diff de
+  `v0.5.1` para `v0.5.2b3` em `mlquantify/` e vazio.
+
+E uma ausencia, que nao e correcao: **o grupo `elm` nao existe na 0.5.1.**
+O pacote instalado nao tem o modulo; o branch de desenvolvimento adiciona
+`elm/_classes.py` e `elm/_svmperf.py` do zero, e mais 732 linhas em
+`neural/_classes.py`. Os metodos da Secao 6 nao estao apenas deixados para
+depois por custo: na versao publicada eles nao existem.
+
+Qualquer reexecucao com as correcoes aplicadas deve usar um `--run-id`
+proprio e entrar no texto como analise de sensibilidade, nunca sobrescrever
+a `final-alinhado`: as 9 904 medidas dela foram tomadas com a 0.5.1, e
+trocar a versao no meio tornaria a execucao heterogenea.
 
 ---
 
