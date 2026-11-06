@@ -1101,33 +1101,52 @@ combinacao inteira e reprovada e sai com `status = erro`. O descarte
 parcial e para amostra isolada; isto nao e isolado.
 
 A forma do problema por tamanho de amostra, reproduzindo a combinacao com o
-limite desarmado:
+limite desarmado (uma thread de BLAS e nucleo fixo, como na execucao -- ver
+a ressalva adiante, que nao e detalhe):
 
 | m | `ACC` e `TAC` | `T50` |
 | --- | --- | --- |
-| 10 | 80 de 100 nulas | 9 de 100 |
-| 50 | 29 de 100 | 1 de 100 |
-| 100 | 21 de 100 | 1 de 100 |
-| 500 | **5 de 100** | 0 de 100 |
+| 10 | 79 de 100 nulas | 7 de 100 |
+| 50 | 27 de 100 | 0 de 100 |
+| 100 | 21 de 100 | 2 de 100 |
+| 500 | **3 de 100** | 0 de 100 |
 
 O `ACC` e o `TAC` dao o mesmo resultado nos quatro tamanhos, ate a sexta
 casa do MAE: nao sao dois achados, e um medido duas vezes. O efeito cai com
-o tamanho da amostra, como esperado, mas **nao desaparece**: ainda ha 5% de
-amostras anuladas em `m = 500`.
+o tamanho da amostra, como esperado, mas **nao desaparece**: ainda ha 3% de
+amostras anuladas em `m = 500`. Os totais fecham com o ledger -- 130, 130 e
+9 --, e o `T50` fecha tambem no padrao por tamanho (`10:7|100:2`) e nos
+quatro valores de MAE.
 
-Esta reproducao e deterministica -- duas execucoes dela deram numeros
-identicos --, mas soma 135 nulas contra as 130 do ledger da
-`final-alinhado`, e **essa diferenca de 5 nao esta explicada**. O codigo do
-`expq` nao mudou entre aquela medicao e a reproducao, a semeadura e a mesma
-e as amostras vem do mesmo cache. A hipotese que sobra, nao verificada, e
-que semear uma vez por metodo (`_semear` em `run_method`) nao basta para
-tornar uma combinacao reproduzivel isolada: antes da passada medida vem o
-`_probe_naive` e as `cost_repeats` repeticoes, e o estado global de
-aleatoriedade em que a passada medida comeca pode depender do que correu
-antes dela no mesmo processo -- 30 metodos na execucao real, 3 na
-reproducao. Enquanto isso nao for verificado, os numeros por tamanho acima
-descrevem a forma do problema, e o total que vale para a execucao de
-referencia e o do ledger.
+**Essa reproducao exige o mesmo arranjo de threads da execucao, e isso vale
+como condicao de reproducao, nao como metadado.** Reproduzindo a mesma
+combinacao com o BLAS livre nos 20 nucleos -- que e o que acontece ao
+chamar o `run_job` direto, sem passar pelo `limit_threads` do `expq/cli.py`
+e pelo `pin_to_core` do `expq/parallel.py` -- saem 135 nulas em vez de 130,
+e o `T50` sai com 11 e com outro padrao (`10:9|50:1|100:1`). Nao e ruido de
+contagem: o padrao por tamanho muda, ou seja a estimativa de cada amostra
+muda.
+
+A causa esta no classificador deste conjunto, e so vale onde ele se
+comporta assim: como a regressao logistica **nao converge** em 1 000
+iteracoes (ver abaixo), o solver e interrompido no meio, e o resultado de
+um solver iterativo interrompido depende da ordem em que as somas sao
+reduzidas -- que muda com o numero de threads do BLAS. Coeficientes
+ligeiramente diferentes deslocam os escores, e outras amostras passam a
+cruzar o ponto em que o truncamento zera todas as classes. Com o mesmo
+numero de threads o resultado e deterministico: duas execucoes livres
+deram 135 identico, e a execucao de uma thread com nucleo fixo reproduz o
+ledger exatamente.
+
+Duas consequencias. A primeira e operacional: quem quiser conferir um
+numero desta execucao precisa de `OMP_NUM_THREADS=1` e nucleo fixo, nao
+basta a semente -- e o `summary.csv` ja grava a coluna `threads` por isso.
+A segunda e uma limitacao a declarar: as 9 904 medidas sao reproduziveis
+*naquele* arranjo de um nucleo por trabalhador, e **nao foi medido em
+quantos outros conjuntos do catalogo o classificador tambem deixou de
+convergir**, de modo que nao se sabe a extensao desta sensibilidade. O
+registro nao guarda a convergencia do classificador; para saber, seria
+preciso instrumenta-la e refazer.
 
 Os dois sao binarios na mlquantify, e o multiclasse passa por
 um-contra-resto: cada sub-quantificador ajusta a propria regressao
