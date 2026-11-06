@@ -530,6 +530,27 @@ python clean_ledger.py --run-id final --out-dir C:\Users\voce\exp-run --apply
 Sem `--apply` ele so mostra o que faria. As combinacoes removidas sao
 refeitas na proxima execucao; o resto e preservado.
 
+Ao fim da execucao `final-alinhado` o filtro marcou **405 das 38 965 linhas
+do `summary.csv` (1,04%)**, atingindo **264 das 9 904 combinacoes (2,7%)**;
+192 delas caiam em casos pareados de custo e sairam do Q2.
+
+| Biblioteca | Linhas | Suspeitas | Taxa | Tempo medio por combinacao |
+| --- | --- | --- | --- | --- |
+| qunfold | 4 387 | 87 | **1,98%** | 103,5 s |
+| QuantificationLib | 6 642 | 74 | 1,11% | 16,7 s |
+| mlquantify | 16 824 | 152 | 0,90% | 12,4 s |
+| QuaPy | 11 112 | 92 | 0,83% | 15,6 s |
+
+Por conjunto: `fashion-mnist` 65, `healthcare` 58, `Dermatology` 41,
+`phphQEck0` 24, `Walking` 21, `Mosquitoes` 20 -- os trabalhos longos, que
+sao os unicos expostos a uma suspensao. A qunfold, que custa seis a oito
+vezes mais por combinacao que as outras tres, tem o dobro da taxa. Entre
+as outras tres a taxa **nao** ordena pelo tempo medio -- a QuaPy custa mais
+que a mlquantify e e marcada menos --, entao a leitura honesta e so esta: a
+marca segue a exposicao a uma janela de suspensao, nao o metodo. Se as
+marcas estivessem distribuidas por igual entre conjuntos baratos e caros,
+seria sinal de que o criterio corta medida boa; nao e o que se ve.
+
 ### Rodizio entre bibliotecas
 
 Os jobs pendentes sao reordenados em rodizio por biblioteca antes de
@@ -1012,6 +1033,47 @@ se sustenta. O limite por metodo e de 30 min de tempo de CPU.
 | QuaPy, QuantificationLib | `EDx` | `constraints are inconsistent, no solution` quando a matriz de distancia degenera |
 | mlquantify | metodos de limiar (`CDE`, `HDy`, `MS`, `T50`, `X`, `MAX`, `MS2`, `ACC`, `TAC`) | devolvem um vetor inteiramente nulo em amostras pequenas de problemas multiclasse (ver abaixo) |
 
+#### As 36 combinacoes que ficaram sem medida
+
+A execucao `final-alinhado` fechou com **9 904 das 9 940 combinacoes
+planejadas (99,6%)**. As 36 que faltam tem uma causa unica, e nao e o
+metodo: **todas sao cauda de um trabalho que estourou o limite de job.**
+
+Os 12 pares (conjunto, biblioteca) com pendencia sao 12 dos 27 pares que
+gravaram a sentinela `__job__`, e em todos os 12 o que falta e um trecho
+**contiguo** que vai de alguma posicao da ordem do registro ate a ultima.
+Nao ha buraco no meio de nenhuma lista.
+
+| Conjunto | Inst. | Atrib. | Cl. | Biblioteca | Faltam | A partir de |
+| --- | --- | --- | --- | --- | --- | --- |
+| `dataset_1457_amazon-commerce-reviews` | 1 500 | 10 000 | 50 | mlquantify | 12 de 30 | `SORD` (19) |
+| `dataset_1457_amazon-commerce-reviews` | 1 500 | 10 000 | 50 | QuaPy | 5 de 20 | `KDEyHD` (16) |
+| `dataset_1457_amazon-commerce-reviews` | 1 500 | 10 000 | 50 | qunfold | 3 de 8 | `MMD` (6) |
+| `dataset_44478` a `dataset_44482` (5x) | 1 500 | 100 | 50 | qunfold | 2 de 8 cada | `GHDx` (7) |
+| `music_genre` | 17 996 | 16 | 11 | qunfold | 3 de 8 | `MMD` (6) |
+| `Mosquitoes` | 158 249 | 53 | 6 | qunfold | 1 de 8 | `MMD` (6) |
+| `Mfeat` | 2 000 | 6 | 10 | qunfold | 1 de 8 | `EDx` (8) |
+| `click-prediction` | 39 948 | 11 | 2 | qunfold | 1 de 8 | `EDx` (8) |
+
+O que faz cada trabalho demorar varia -- 10 mil atributos em um caso, 50
+classes com 1 500 instancias em outro, 158 mil instancias no terceiro -- e
+**19 das 36 estao na qunfold**, a biblioteca mais cara por combinacao
+(103,5 s de media contra 12 a 17 s das outras tres). Nao e, portanto, uma
+limitacao de dimensionalidade: os cinco conjuntos `44478`-`44482` tem 100
+atributos, e o `Mfeat` tem 6.
+
+Isso expoe um vies de medicao que vale declarar. O `specs_for` respeita
+apenas a ordem do registro: nao ha reordenacao por custo, nem retomada do
+ponto em que o trabalho parou dentro da lista. Quando o limite de job
+dispara, **quem fica sem medida e sempre o fim da lista**, de modo que um
+metodo registrado por ultimo esta sistematicamente mais exposto do que um
+registrado no inicio. Uma execucao retomada fecha a cauda, porque o ledger
+pula o que ja foi medido -- salvo quando o metodo que travou nao devolve
+nunca, e ai a cauda atras dele fica bloqueada: foi o que o `MMD` da qunfold
+fez em `Mosquitoes`, em tres tentativas e cerca de 33 h de CPU sem gravar
+uma linha. O contorno usado aqui foi tirar o metodo da frente com
+`--skip-methods`, nao mexer na ordem.
+
 #### O vetor nulo da mlquantify
 
 Verificado em `IRIS.csv` (3 classes), reproduzindo o protocolo: o `CDE`
@@ -1077,12 +1139,64 @@ e o que basta para zerar o vetor; o classificador ruim so aumenta a conta.
 Como ele e o mesmo para as quatro bibliotecas, a comparacao continua justa:
 a diferenca e que as outras tres degradam e a mlquantify anula.
 
+#### O `HDx` da mlquantify nao acompanha a amostra
+
+E o unico lugar da execucao em que duas bibliotecas concordam entre si e
+discordam da mlquantify por um fator grande. Em `mlquantify 0.5.1`, sobre
+os casos pareados das 142 bases:
+
+| Comparada | Casos | AE mlquantify | AE da outra | Dif. abs. media | Iguais ate 1e-3 | mlq. melhor |
+| --- | --- | --- | --- | --- | --- | --- |
+| QuantificationLib | 524 | **0,2561** | 0,0986 | 0,1600 | 3,6% | 8,2% |
+| QuaPy | 564 | **0,2505** | 0,1053 | 0,1519 | 1,8% | 13,7% |
+
+A QuantificationLib e a QuaPy caem em 0,0986 e 0,1053 -- concordam entre si
+--, a mlquantify fica 2,5x acima das duas, e e melhor em apenas 8% e 14%
+dos casos. Nao e a familia dos metodos sobre atributos crus:
+
+| Metodo | Comparada | Dif. abs. media | Iguais ate 1e-3 |
+| --- | --- | --- | --- |
+| `EDx` | QuaPy | 0,0014 | 95,9% |
+| `EDx` | QuantificationLib | 0,0024 | 95,2% |
+| `EDx` | qunfold | 0,0026 | 94,1% |
+| `GHDx` | qunfold | 0,0063 | 23,9% |
+| `HDx` | QuaPy | **0,1519** | 1,8% |
+| `HDx` | QuantificationLib | **0,1600** | 3,6% |
+
+O `GHDx` merece a ressalva: 23,9% de igualdade ate 1e-3 e baixo, mas a
+diferenca media dele e de 0,0063 -- ele concorda em magnitude e difere no
+digito fino, que e o esperado de duas buscas numericas distintas sobre as
+mesmas bordas. O `HDx` difere em magnitude, que e outra coisa.
+
+A causa esta identificada e corrigida em `coenlab/mlquantify#9`: o `HDx`
+monta histograma sobre os atributos crus, mas herdou o intervalo dos irmaos
+de espaco de escores (`range=(0, 1)` com `bin_edges="fixed"`), que e o
+certo para `HDy` e `DyS`, cuja entrada e uma posteriori, e errado para
+valor de atributo. O `np.histogram` descarta o que cai fora do intervalo,
+entao em dados nao padronizados a maior parte de cada atributo era jogada
+fora e **a estimativa parava de depender da amostra de teste**: virava um
+predito quase constante. O `GHDx` nao foi afetado porque ajusta as
+proprias bordas -- o que explica por que ele concorda aqui e o `HDx` nao.
+
+Duas consequencias para o texto. A primeira: o numero de `HDx` da
+mlquantify medido aqui **e o da versao publicada, com o defeito**. Quem
+repetir a execucao com a correcao aplicada obtem outro valor, e a tabela
+acima precisa dizer a versao. A segunda e metodologica. A PR mede o
+defeito em dados sinteticos, com seis atributos e prevalencia conhecida;
+esta execucao o mede em 142 conjuntos e 1 088 casos pareados, sem ter sido
+montada para isso. Duas implementacoes independentes concordando entre si
+e discordando da terceira e o tipo de sinal que um experimento de
+equivalencia produz de graca, e vale mais do que qualquer uma das tres
+comparada a um valor de referencia unico.
+
 Dois contrastes valem a discussao de Q1:
 
-* **mlquantify e QuaPy completam `HDx` onde as outras duas nao completam.**
-  Em `gina_agnostic` (970 atributos), o `HDx` da mlquantify termina em
-  4.815 s e o da QuaPy em 1.042 s, enquanto a QuantificationLib erra e a
-  qunfold estoura o tempo.
+* **mlquantify e QuaPy completam `HDx` onde as outras duas nao completam
+  -- mas concluir nao e acertar.** Em `gina_agnostic` (970 atributos), o
+  `HDx` da mlquantify termina em 4.815 s e o da QuaPy em 1.042 s, enquanto
+  a QuantificationLib erra e a qunfold estoura o tempo. O da mlquantify
+  conclui com a estimativa errada, pelo motivo da subsecao anterior, de
+  modo que o contraste e de cobertura, nao de qualidade.
 * **A formulacao generalizada da mlquantify e mais barata que a classica
   dela mesma.** No mesmo conjunto, `GHDx` leva 194 s contra 4.815 s do
   `HDx` -- uma ordem de grandeza. Em `312_scene`, 65 s contra 1.254 s.
