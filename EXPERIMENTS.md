@@ -425,12 +425,35 @@ python run_experiments.py --run-id final --max-rows 100000
 #### O que o `--method-timeout` nao cobre
 
 O prazo por metodo e verificado em um unico ponto: no laco que estima as
-400 amostras, entre uma amostra e a proxima. **O ajuste fica fora dele.**
-Um metodo que demora dentro do `fit` nao produz linha de `timeout`; quem o
-encerra e o `--job-timeout`, horas depois, e a combinacao fica pendente no
-ledger como se nunca tivesse sido tentada. Com `cost_repeats = 3` o ajuste
-e feito tres vezes, mais uma quarta para medir memoria, de modo que a parte
-descoberta nao e pequena para os metodos que montam matriz de distancia.
+400 amostras, entre uma amostra e a proxima. **O ajuste fica fora dele**, e
+isso tem duas consequencias diferentes, dependendo de o `fit` devolver ou
+nao.
+
+Quando o `fit` e lento mas termina, o prazo e cobrado tarde: a primeira
+verificacao acontece antes da amostra 0, quando o orcamento ja foi todo
+gasto no ajuste. A linha sai como `timeout`, so que acima do limite. Na
+`Dermatology.csv` o `KDEyML` e o `KDEyHD` da QuaPy registraram
+`tempo limite excedido apos 0 amostras` com **2 441 s** e **2 496 s** de
+parede contra um orcamento de 1 800 s. A medicao e honesta — o metodo
+realmente nao estimou nenhuma amostra —, mas o corte nao e no ponto pedido.
+
+Quando o `fit` nao devolve, **o prazo nunca e cobrado.** O `MMD` da qunfold
+no `Mosquitoes.csv` foi tentado tres vezes e em nenhuma delas chegou a
+sair do ajuste: 8 h na primeira (morto pelo limite de job), 9 h 47 na
+segunda (a execucao morreu antes) e 15 h na terceira, tambem morto pelo
+limite de job — **cerca de 33 h de CPU sem uma unica linha no ledger.** O
+unico limite que o alcanca e o `--job-timeout`, que mata o job inteiro e
+leva com ele os metodos que vinham depois: no caso da qunfold, o `GHDx` e o
+`EDx`, que estao atras do `MMD` na ordem do registro e nunca foram
+tentados. Para chegar neles e preciso excluir o `MMD` da passada:
+
+```bash
+python run_experiments.py --run-id final-alinhado --skip-methods MMD
+```
+
+Com `cost_repeats = 3` o ajuste e feito tres vezes, mais uma quarta para
+medir memoria, de modo que a parte descoberta nao e pequena para os metodos
+que montam matriz de distancia.
 
 O relogio e o de CPU, e isso e proposital — a maquina foi suspensa tres
 vezes nesta execucao, e um relogio de parede teria reprovado metodos
@@ -438,12 +461,17 @@ baratos por isso. O avesso da escolha e que o tempo de CPU tambem para
 enquanto o processo espera disco: sob paginacao pesada a contagem do prazo
 congela junto com o processo que ela deveria interromper.
 
-Observado em 05/11/2026: o `EDy` da mlquantify no `healthcare.csv` comecou
-as 07:18 e a execucao inteira — processo pai e trabalhadores — morreu sem
+Observado em 05/11/2026: as 07:18 o `EDy` da mlquantify no `healthcare.csv`
+comecou e a execucao inteira — processo pai e trabalhadores — morreu sem
 escrever nenhuma linha, sem dump e sem evento do sistema. A maquina seguiu
 de pe por mais de tres horas depois disso. Nao ha medicao que prove a
-causa; o que os registros mostram e que nenhum dos dois limites se aplicava
-ao ponto onde a execucao parou.
+causa. O que se sabe: o job do `MMD` da qunfold estava no ar desde as 21:31
+da noite anterior, preso no ajuste, e numa tentativa posterior esse mesmo
+trabalhador foi medido com **pico de 10,4 GB de memoria residente e 17
+milhoes de faltas de pagina** numa maquina de 15,7 GB. Tres trabalhadores,
+um deles nesse estado, e um `EDy` comecando a montar matriz de distancia e
+um cenario compativel com esgotamento do limite de confirmacao de memoria,
+no qual nem registrar em log e possivel. Compativel, nao comprovado.
 
 A correcao seria passar o prazo tambem ao `fit`, cobrando-o num processo
 separado em vez de dentro do laco de amostras. Ficou de fora de proposito
