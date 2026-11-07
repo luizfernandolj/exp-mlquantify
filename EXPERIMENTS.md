@@ -1014,6 +1014,20 @@ grandeza, e perde no metodo mais simples que existe. Vale como item de
 correcao na biblioteca -- tornar o `estimator` opcional no `MLPE`, ou nao
 cruzar validacao quando ele nao e usado -- e nao como ajuste do protocolo.
 
+Duas ressalvas que vieram depois, da medicao da correcao (PR #6, no fim
+desta secao):
+
+* **As tres ordens de grandeza sao do tempo de treinamento, e esse numero
+  e fragil.** O denominador -- o treino do `MLPE` da QuaPy -- fica em
+  0,0001 a 0,0002 s, na resolucao do relogio, e o mesmo dado da 1 376x,
+  2 294x ou 1 307x conforme o estimador escolhido. O numero robusto e o
+  composto de treino mais estimacao: **27,4x**. A conclusao de que a
+  mlquantify e mais cara no metodo mais simples se sustenta; a de que e
+  por tres ordens de grandeza nao, e o texto deve liderar pelo composto.
+* **A correcao existe e foi medida.** Ajustando o estimador uma vez em vez
+  de validar cruzado, o `fit` cai de 6 treinamentos para 1, o erro nao
+  muda, e o composto contra a QuaPy cai de 27,4x para 9,9x.
+
 ### Limitacoes de escala observadas na execucao
 
 As anteriores aparecem ao escrever o codigo. Estas so aparecem ao rodar, e
