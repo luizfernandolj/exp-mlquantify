@@ -1527,7 +1527,67 @@ A `final-corrigido` esta em `results/final-corrigido/`, com as tabelas em
 separar o que veio da `final-alinhado` do que veio da `sens_corrigido`.
 A `final-alinhado` nao foi alterada.
 
-A PR #6, do custo do `MLPE`, nao entrou em nenhuma das duas execucoes.
+#### A PR #6: o custo do `MLPE` medido
+
+Medida na execucao `sens_pr6`: `MLPE` nos 142 conjuntos mais 12 de
+controle, 154 combinacoes, todas `ok`, 0,80 h de CPU em 30 min. A
+correcao foi aplicada sobre a `v0.5.1` numa venv propria (`.venv-pr6`),
+**sem** as PRs #9 e #10, para que o efeito fosse atribuivel a ela so. Os
+dois simbolos que a PR importa (`_get_estimator` e
+`_get_estimator_function`) existem na 0.5.1, e o patch aplica limpo.
+
+**O mecanismo, contado antes de medir.** Com um classificador
+instrumentado, a 0.5.1 limpa faz **6 treinamentos e 5 `predict_proba`**
+por `fit` -- cinco dobras mais o reajuste, o que confirma a contagem que
+esta na Secao "O custo do MLPE". Com a PR #6 faz **1 e 1**. A estimativa
+nao muda (`0.000e+00` de diferenca), segue igual a prevalencia de treino,
+e `estimator_` continua existindo depois do `fit`.
+
+Nas 560 linhas pareadas, o erro e **identico** em MAE, MRAE, MSE e NKLD
+(`0.000e+00`), como tem de ser: a correcao mexe no custo de chegar ao
+numero, nao no numero.
+
+**Uma correcao de sessao que esta medida precisou.** Os 12 controles
+mostraram que esta sessao roda **1,26x mais rapido** que a da
+`final-alinhado`: a razao de tempo nos controles e 0,793 (96 razoes),
+nao 1,000 como fora na `sens_corrigido`. Parte do ganho bruto e a maquina.
+As razoes abaixo estao divididas por esse fator; a de memoria nao, porque
+memoria nao depende da velocidade da sessao.
+
+| Medida (mediana das razoes) | bruta | calibrada | ganho |
+| --- | --- | --- | --- |
+| tempo de treinamento | 0,230 | **0,291** | 3,4x |
+| tempo de estimacao | 1,011 | -- | inalterado |
+| treino + estimacao | 0,377 | **0,476** | 2,1x |
+| memoria no treinamento | 0,311 | 0,311 | 3,2x |
+
+O tempo de estimacao nao muda, o que era esperado: o `predict` devolve
+`train_priors_` e nunca foi o problema.
+
+**Contra a quapy**, em mediana das razoes caso a caso, calibrado: treino
+mais estimacao cai de **27,4x para 9,9x** e a memoria de treino de 24,0x
+para 6,9x.
+
+**E aqui uma ressalva sobre o numero mais citado desta secao.** O `1 376x`
+de tempo de treinamento e fragil, porque o denominador -- o treino do
+`MLPE` da QuaPy -- fica em 0,0001 a 0,0002 s, na resolucao do relogio.
+Dependendo do estimador, a mesma execucao de referencia da 1 376x (razao
+das medianas, como a tabela original), 2 294x (razao das medianas no
+subconjunto de 139 conjuntos) ou 1 307x (mediana das razoes). As tres
+descrevem o mesmo dado. O numero robusto e o composto: **treino mais
+estimacao, 27,4x na referencia e 9,9x com a correcao**. O texto deve
+liderar com ele e tratar o `1 376x` como ilustracao, nao como medida.
+
+Com isso, a conclusao qualitativa da secao sobrevive mas enfraquece: a
+mlquantify continua mais caro que a QuaPy no metodo mais simples que
+existe, e por uma ordem de grandeza, nao por tres.
+
+**Por que a PR #6 nao entrou na `final-corrigido`.** As medidas de custo
+desta sessao estao 1,26x deslocadas, e injetar linhas assim na Q2
+enviesaria o agregado -- exatamente o que a montagem da `final-corrigido`
+evitou ao nao substituir linhas cujo erro nao muda. O efeito da PR #6
+fica registrado aqui, como analise de sensibilidade, e a `final-corrigido`
+segue com o `MLPE` medido na 0.5.1.
 
 ---
 
