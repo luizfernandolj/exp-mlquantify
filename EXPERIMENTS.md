@@ -1334,12 +1334,13 @@ Dois contrastes valem a discussao de Q1:
 Tudo nesta secao foi medido contra a `mlquantify 0.5.1` instalada do PyPI
 (instalacao normal, nao editavel: a venv do experimento nao ve o checkout de
 desenvolvimento). Parte do que a secao relata tem correcao escrita e nao
-revisada, e o texto precisa dizer qual numero muda se ela entrar.
+revisada; as PRs #9 e #10 foram medidas na execucao `sens_corrigido`, no
+fim desta secao.
 
 | PR | O que muda | Afeta | Esta na 0.5.1? |
 | --- | --- | --- | --- |
-| #9 `HDx` | bordas do histograma por atributo | **erro do `HDx`** | nao |
-| #10 vetor nulo | `normalize_prevalences` devolve a uniforme no lugar de zeros | **erro e descarte de 11 metodos; 20 combinacoes perdidas** | nao |
+| #9 `HDx` | bordas do histograma por atributo | **erro do `HDx`**: MAE de 0,2505 para 0,1005; desacordo pareado de 0,1600 para 0,0055 | nao |
+| #10 vetor nulo | `normalize_prevalences` devolve a uniforme no lugar de zeros | **cobertura de 11 metodos**: as 20 combinacoes perdidas e as 216 amostras descartadas voltam; erro quase nao muda | nao |
 | #6 `MLPE` | ajusta o estimador uma vez em vez de validar cruzado | **custo do `MLPE`** (os 1 376x e 67x acima) | nao |
 | #8 `CDE` | so docstring, nenhuma linha de codigo | nada | nao |
 | #7 CI | so o workflow de teste | nada | nao |
@@ -1367,6 +1368,101 @@ Qualquer reexecucao com as correcoes aplicadas deve usar um `--run-id`
 proprio e entrar no texto como analise de sensibilidade, nunca sobrescrever
 a `final-alinhado`: as 9 904 medidas dela foram tomadas com a 0.5.1, e
 trocar a versao no meio tornaria a execucao heterogenea.
+
+#### A execucao de sensibilidade `sens_corrigido`
+
+As PRs #9 e #10 foram aplicadas e medidas. A execucao rodou de
+2026-11-06 14:53 a 2026-11-07 02:38, com 217 combinacoes: 216 `ok`, 1
+`timeout`, 22,3 h de CPU acumuladas.
+
+**O arranjo.** As duas correcoes foram aplicadas **sobre a `v0.5.1`**, nao
+sobre o branch de desenvolvimento. Isso e deliberado: pelo branch, a
+diferenca medida incluiria os modulos novos e as remocoes no
+`apply_protocol`, e nao seria atribuivel as correcoes. A biblioteca
+corrigida foi para uma venv separada (`.venv-corrigido`); a venv do
+experimento nao foi tocada, e a `final-alinhado` segue reproduzivel.
+
+O `pip install` do fonte falha nesta maquina: a mlquantify compila a
+extensao Cython `matching/_histogram_sweep` e nao ha compilador C
+disponivel. O contorno foi instalar a `0.5.1` do PyPI, cujo wheel traz o
+`.pyd` pronto, e aplicar os patches nos `.py` instalados. Antes disso foi
+conferido que esses `.py` sao identicos aos da tag `v0.5.1`: diferem
+apenas em CRLF contra LF, mesmo numero de linhas, nenhuma diferenca de
+conteudo.
+
+**O controle, que e o que autoriza ler o resto.** Doze combinacoes de
+`GACC`, `CC` e `PCC` -- metodos que nenhuma das correcoes toca -- rodaram
+no mesmo arranjo. Nas 48 linhas pareadas, a diferenca maxima contra a
+`final-alinhado` e exatamente `0.000e+00` em MAE, MRAE, MSE e NKLD. O
+arranjo reproduz a execucao de referencia bit a bit em tudo que as
+correcoes nao alteram, de modo que as diferencas abaixo sao das correcoes
+e nao do ambiente.
+
+**PR #9, o `HDx`.** Medido nos 142 conjuntos; 564 linhas que as duas
+execucoes mediram:
+
+| | antes | depois |
+| --- | --- | --- |
+| MAE | 0,2505 | **0,1005** |
+| MRAE | 1,3877 | **0,6052** |
+| MSE | 0,1216 | **0,0269** |
+
+Melhora em 516 das 564 linhas, e em todos os tamanhos de amostra: de
+0,2944 para 0,1751 em m=10 e de 0,2180 para **0,0552** em m=500.
+
+No pareado contra as outras bibliotecas, que e a unidade da Q1:
+
+| | antes | depois |
+| --- | --- | --- |
+| contra quantificationlib (524 casos) | 0,1600 | **0,0055** |
+| contra quapy (564 casos) | 0,1519 | **0,0137** |
+
+A media da mlquantify cai de 0,2561 para 0,1024 contra os 0,0986 da
+quantificationlib, e de 0,2505 para 0,1005 contra os 0,1053 da quapy. A
+concordancia ate 0,01 sobe de 13,2% para 84,9% contra a quantificationlib
+e de 13,8% para 63,7% contra a quapy. **O `HDx` deixa de ser o pior
+desacordo da Q1** -- sai da lista das cinco maiores diferencas, que passa
+a ser encabecada pelo `HDy` contra a quantificationlib (0,0436). O que a
+`final-alinhado` registrou como desacordo entre implementacoes era o
+defeito das bordas do histograma.
+
+**PR #10, o vetor nulo.** As 20 combinacoes que a `final-alinhado` perdeu
+inteiras com `TooManyInvalidSamples` **completam todas**: `CDE` 10, `ACC`
+3, `TAC` 3, `MS` 2, `MS2` 1, `HDy` 1. O descarte parcial tambem zera: as
+216 amostras descartadas em 41 combinacoes caem para **nenhuma**, nos onze
+metodos afetados.
+
+O efeito no erro, porem, e pequeno. Nas linhas que as duas execucoes
+mediram, o MAE anda na terceira ou quarta decimal -- `ACC` 0,2036 para
+0,2027, `MS` 0,1709 para 0,1698, `CDE` 0,1779 para 0,1778 -- porque o que
+muda e a inclusao das amostras antes descartadas, nao o calculo das que
+ja entravam. **A correcao do vetor nulo e um ganho de cobertura, nao de
+erro**, e o texto nao deve apresenta-la como melhora de acuracia.
+
+A taxa de conclusao da mlquantify na Q3 sobe de 0,9868 para **0,9915**
+(4 212 de 4 248), com as 20 combinacoes recuperadas.
+
+**O unico `timeout`.** `HDx` em `dataset_1457_amazon-commerce-reviews`
+(10 000 atributos, e o `HDx` monta histograma por atributo). Nao e
+regressao: no ledger da `final-alinhado` esse par mlquantify x `HDx`
+tambem nao tem medida -- esta entre as 36 que o limite de job cortou. A
+cobertura do `HDx` e 141 de 142 nas duas execucoes.
+
+**O que esta e o que nao esta recalculado.** Os numeros por metodo acima
+reproduzem exatamente o pareamento da analise oficial (os 524 e 564 casos
+do `HDx` conferem com a `respostas.md`). Os agregados globais da Q1, nao:
+a `analysis.py` expande cada metodo pelos seus apelidos via
+`expand_aliases`, e um recalculo direto pareia menos casos (5 984 contra
+os 7 672 da quantificationlib). Substituindo so as linhas de `HDx`, o
+recalculo direto indica a diferenca media caindo de 0,0228 para 0,0093
+contra a quantificationlib, com correlacao de 0,8475 para 0,9644, e de
+0,0173 para 0,0098 contra a quapy, com correlacao de 0,8958 para 0,9633;
+a qunfold nao muda, porque nao implementa `HDx`. **Esses tres numeros sao
+indicativos da direcao e da ordem de grandeza, nao a tabela final da
+Q1**, que exige rodar a `analysis.py` sobre uma execucao montada com as
+correcoes.
+
+A PR #6, do custo do `MLPE`, nao entrou nesta execucao.
 
 ---
 
