@@ -1394,9 +1394,10 @@ conteudo.
 `GACC`, `CC` e `PCC` -- metodos que nenhuma das correcoes toca -- rodaram
 no mesmo arranjo. Nas 48 linhas pareadas, a diferenca maxima contra a
 `final-alinhado` e exatamente `0.000e+00` em MAE, MRAE, MSE e NKLD. O
-arranjo reproduz a execucao de referencia bit a bit em tudo que as
-correcoes nao alteram, de modo que as diferencas abaixo sao das correcoes
-e nao do ambiente.
+arranjo reproduz **o erro** da execucao de referencia exatamente, de modo
+que as diferencas de erro abaixo sao das correcoes e nao do ambiente. O
+custo nao reproduz exatamente, e nao poderia: ver a ressalva na
+`final-corrigido`, adiante.
 
 **PR #9, o `HDx`.** Medido nos 142 conjuntos; 564 linhas que as duas
 execucoes mediram:
@@ -1448,21 +1449,85 @@ regressao: no ledger da `final-alinhado` esse par mlquantify x `HDx`
 tambem nao tem medida -- esta entre as 36 que o limite de job cortou. A
 cobertura do `HDx` e 141 de 142 nas duas execucoes.
 
-**O que esta e o que nao esta recalculado.** Os numeros por metodo acima
-reproduzem exatamente o pareamento da analise oficial (os 524 e 564 casos
-do `HDx` conferem com a `respostas.md`). Os agregados globais da Q1, nao:
-a `analysis.py` expande cada metodo pelos seus apelidos via
-`expand_aliases`, e um recalculo direto pareia menos casos (5 984 contra
-os 7 672 da quantificationlib). Substituindo so as linhas de `HDx`, o
-recalculo direto indica a diferenca media caindo de 0,0228 para 0,0093
-contra a quantificationlib, com correlacao de 0,8475 para 0,9644, e de
-0,0173 para 0,0098 contra a quapy, com correlacao de 0,8958 para 0,9633;
-a qunfold nao muda, porque nao implementa `HDx`. **Esses tres numeros sao
-indicativos da direcao e da ordem de grandeza, nao a tabela final da
-Q1**, que exige rodar a `analysis.py` sobre uma execucao montada com as
-correcoes.
+#### A execucao `final-corrigido`: Q1, Q2 e Q3 com as correcoes
 
-A PR #6, do custo do `MLPE`, nao entrou nesta execucao.
+Os numeros acima sao da comparacao direta. A tabela oficial exige a
+`analysis.py`, que expande cada metodo pelos seus apelidos
+(`expand_aliases`) e por isso pareia mais casos que um recalculo a mao --
+7 688 contra a quantificationlib, nao os 5 984 de um merge simples. Para
+obter os numeros oficiais foi montada a execucao `final-corrigido`.
+
+**Como ela foi montada, e o que nao foi tocado.** Partiu da
+`final-alinhado` e substituiu **apenas as 202 combinacoes em que a
+correcao de fato morde**: as 141 de `HDx` e as 61 da PR #10 -- as 20 que
+tinham dado `TooManyInvalidSamples` e as 41 que tinham descarte parcial
+por soma nula. Todo o resto veio da referencia, inclusive os 12 controles.
+Isso e deliberado: substituir uma linha cujo erro nao muda troca a medida
+de **custo** por uma tomada em outra sessao, e injetaria ruido de
+cronometragem na Q2 sem ganho nenhum.
+
+A verificacao confirma o corte: as tres outras bibliotecas ficam
+**identicas linha a linha**, e os 18 metodos da mlquantify que as
+correcoes nao tocam tambem -- `GACC`, `CC` e `PCC` entre eles. Nos 12
+metodos tocados mudam exatamente as 57 linhas que tinham descarte, mais as
+80 linhas das 20 combinacoes recuperadas. A cobertura nao muda: 9 904
+medidas, as mesmas 36 faltando.
+
+**Uma distincao que o controle revelou e que vale registrar.** O erro
+reproduz exatamente entre as duas sessoes -- `0.000e+00` em MAE, MRAE, MSE
+e NKLD. O **custo nao reproduz**, e nao tem como: nas 16 linhas de cada
+controle o tempo varia com razao mediana de 1,000 mas diferenca de ate
+9 s de treino. Medida de erro e deterministica dado o pareamento de
+amostras; medida de tempo nao e. Qualquer afirmacao de reprodutibilidade
+bit a bit vale para o erro, nunca para o custo.
+
+**Q1.** O `HDx` sai da lista de desacordos e os agregados melhoram:
+
+| | referencia | corrigido |
+| --- | --- | --- |
+| quantificationlib, dif. media | 0,0195 | **0,0090** |
+| quantificationlib, iguais ate 0,01 | 80,7% | **85,4%** |
+| quantificationlib, correlacao | 0,8653 | **0,9628** |
+| quapy, dif. media | 0,0155 | **0,0091** |
+| quapy, iguais ate 0,01 | 80,6% | **82,8%** |
+| quapy, correlacao | 0,9066 | **0,9665** |
+| qunfold | 0,0097 | 0,0097 (nao implementa `HDx`) |
+
+A maior diferenca absoluta cai de 0,5742 para 0,4537 contra a
+quantificationlib e de 0,5747 para 0,4127 contra a quapy. O numero de
+metodos que acusam diferenca nos testes **nao muda**: 13 de 28 (46,4%). A
+correcao aproxima as medias sem alterar o veredito dos testes de
+hipotese, e o texto nao deve sugerir o contrario.
+
+A nova lista dos cinco piores desacordos nao tem mais `HDx`: `HDy` contra
+quantificationlib (0,0434), `MMD` contra qunfold (0,0428), `MS` contra
+quapy (0,0384), `PWK` contra quantificationlib (0,0355), `MS2` contra
+quapy (0,0203). Nenhum chega a um decimo do que o `HDx` media antes.
+
+**Q2, e um achado que nao era esperado.** A correcao do `HDx` **tambem o
+deixa mais barato**: razao mediana de 0,425 no tempo de estimacao e 0,652
+no de treino, contra a propria medida anterior. Nao e ruido de sessao --
+nos controles essa razao e 1,000. Pedir as bordas ajustadas custa menos
+que o caminho que o `HDx` tomava. Com isso o tempo de treinamento da
+mlquantify contra a quantificationlib vai de 0,90x para **0,88x** (mais
+barata em 77% dos casos, contra 73%) e o de estimacao de 1,33x para
+1,31x. As demais razoes andam na segunda decimal ou menos.
+
+Vale a ressalva de escopo: das 6 088 linhas de custo dos metodos da
+PR #10, 156 (2,6%) foram re-medidas, com razao mediana de 1,064 no treino
+e 1,002 na estimacao -- simetrico, sem vies. O deslocamento da Q2 vem do
+`HDx`, nao da re-medicao.
+
+**Q3.** A taxa de conclusao da mlquantify vai de 0,9868 para **0,9915**
+(4 212 de 4 248). As outras tres bibliotecas nao mudam, e a mlquantify
+segue a unica com taxa de configuracao manual igual a de conclusao.
+
+A `final-corrigido` esta em `results/final-corrigido/`, com as tabelas em
+`analise/`. As linhas guardam o `run_id` de origem, de modo que da para
+separar o que veio da `final-alinhado` do que veio da `sens_corrigido`.
+A `final-alinhado` nao foi alterada.
+
+A PR #6, do custo do `MLPE`, nao entrou em nenhuma das duas execucoes.
 
 ---
 
