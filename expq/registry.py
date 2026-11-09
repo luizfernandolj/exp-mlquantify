@@ -212,8 +212,12 @@ _mlq("X", "selecao de limiar", "counting", "TX", binary_only=True)
 _mlq("MAX", "selecao de limiar", "counting", "TMAX", binary_only=True)
 _mlq("MS", "selecao de limiar", "counting", "MS", binary_only=True)
 _mlq("MS2", "selecao de limiar", "counting", "MS2", binary_only=True)
-_mlq("MLPE", "verossimilhanca", "likelihood", "MLPE",
-     notes="linha de base trivial de Hassan, Maletzke e Batista (2021)")
+# Sem classificador: o MLPE da mlquantify deixou de ser agregativo, como o
+# da quapy sempre foi. O `fit` le as proporcoes de `y` e nao treina nada, e a
+# classe nao aceita mais estimador -- passar um levanta TypeError.
+_mlq("MLPE", "verossimilhanca", "likelihood", "MLPE", needs_classifier=False,
+     notes="linha de base trivial de Hassan, Maletzke e Batista (2021); "
+           "nao agregativo, nao recebe classificador")
 _mlq("EMQ", "verossimilhanca", "likelihood", "EMQ")
 _mlq("CDE", "verossimilhanca", "likelihood", "CDE")
 _mlq("HDy", "casamento de distribuicoes", "matching", "HDy", binary_only=True,
