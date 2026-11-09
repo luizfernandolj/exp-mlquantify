@@ -1483,7 +1483,10 @@ Os numeros acima sao da comparacao direta. A tabela oficial exige a
 `analysis.py`, que expande cada metodo pelos seus apelidos
 (`expand_aliases`) e por isso pareia mais casos que um recalculo a mao --
 7 688 contra a quantificationlib, nao os 5 984 de um merge simples. Para
-obter os numeros oficiais foi montada a execucao `final-corrigido`.
+obter os numeros com as correcoes foi montada a execucao
+`final-corrigido`; os numeros oficiais terminam na `final-separado`, duas
+subsecoes adiante, que separa dois pares de metodos que nao eram o mesmo
+metodo.
 
 **Como ela foi montada, e o que nao foi tocado.** Partiu da
 `final-alinhado` e substituiu **apenas as 202 combinacoes em que a
@@ -1532,6 +1535,10 @@ quantificationlib (0,0434), `MMD` contra qunfold (0,0428), `MS` contra
 quapy (0,0384), `PWK` contra quantificationlib (0,0355), `MS2` contra
 quapy (0,0203). Nenhum chega a um decimo do que o `HDx` media antes.
 
+Dos dois primeiros se descobriu depois que nao eram desacordo de
+implementacao, e sim metodo diferente de cada lado; a execucao
+`final-separado`, adiante, os separa e e de onde saem os numeros oficiais.
+
 **Q2, e um achado que nao era esperado.** A correcao do `HDx` **tambem o
 deixa mais barato**: razao mediana de 0,425 no tempo de estimacao e 0,652
 no de treino, contra a propria medida anterior. Nao e ruido de sessao --
@@ -1554,6 +1561,99 @@ A `final-corrigido` esta em `results/final-corrigido/`, com as tabelas em
 `analise/`. As linhas guardam o `run_id` de origem, de modo que da para
 separar o que veio da `final-alinhado` do que veio da `sens_corrigido`.
 A `final-alinhado` nao foi alterada.
+
+#### A execucao `final-separado`: dois metodos que nao sao o mesmo metodo
+
+**A regra e anterior aos dois casos, e isso importa para ler o que vem
+depois.** O `registry.py` ja a enunciava para as formulacoes generalizadas
+da qunfold: "sao formulacoes distintas e **nao devem ser comparadas entre
+si**". Por isso `qunfold.HDy`, `qunfold.HDx`, `qunfold.ACC` e
+`qunfold.PACC` estao registrados como `GHDy`, `GHDx`, `GACC` e `GPACC`,
+sem apelido para a versao sem o G. Faltava aplica-la a dois pares que
+estavam casados pelo nome.
+
+**O `HDy` da quantificationlib.** A nota do registro ja dizia, antes de
+qualquer medicao, que "esta coluna e uma variante de intervalo fixo". A
+classe confirma: `n_bins=8`, `bin_strategy=equal_width`, os padroes dela.
+A definicao do metodo varre intervalos e toma a mediana das estimativas,
+que e o que a mlquantify e a quapy fazem. Sao dois estimadores. Passa a
+`HDyFix`.
+
+**O `MMD` da qunfold.** `qunfold.KMM` e kernel mean matching com nucleo de
+energia; o `MMD` da mlquantify e `MMD_RKHS` com `kernel='rbf'`. Mesmo
+arcabouco, nucleo diferente. Passa a `KMM`. Esta era uma escolha
+deliberada -- o registro trazia a nota "KMM com nucleo de energia" --, e
+foi revista.
+
+**O que decide cada caso nao e a leitura do codigo, e a assimetria.** Se a
+discordancia viesse de semente ou de particao, ela seria simetrica: a
+mlquantify seria melhor em cerca de metade dos casos.
+
+| par | dif. abs. media | mlquantify melhor | p-valor | leitura |
+| --- | --- | --- | --- | --- |
+| `HDy` vs qlib | 0,0434 | **15,2%** de 560 | 1,4e-29 | enviesado: estimador diferente |
+| `MMD` vs qunfold | 0,0428 | **51,2%** de 508 | **0,133** | simetrico: metodo diferente |
+| `MS` vs quapy | 0,0384 | 56,5% | **0,419** | magnitude sem sistematicidade |
+| `MS2` vs quapy | 0,0203 | 68,3% | 5,9e-08 | em aberto |
+| `PWK` vs qlib | 0,0355 | 42,9% | 6,6e-06 | em aberto |
+
+**E a semente esta descartada por um controle, nao por argumento.** `CC`,
+`PCC` e `MLPE` concordam em **100%** dos casos ate 1e-3, com p = 1,0. Os
+tres leem o classificador direto -- o `CC` conta predicoes duras, o `PCC`
+media posteriores. Se o classificador diferisse entre as bibliotecas por
+semente, por dobra de validacao cruzada ou por ajuste, eles nao poderiam
+ser identicos em 568 casos. Somado a padronizacao que o `registry.py` ja
+documenta (`cv=5`, estratificado, embaralhado, `random_state=42` passados
+a cada biblioteca no nome dela), e aos 12 controles que reproduziram o
+erro em `0.000e+00`, nao sobra espaco para atribuir a discordancia a
+aleatoriedade.
+
+**Q1, pelas tabelas da `final-separado`:**
+
+| | `final-corrigido` | `final-separado` |
+| --- | --- | --- |
+| quantificationlib | 7 688 casos, 0,0090, 85,4%, corr 0,9628 | 7 128 casos, **0,0063**, **89,7%**, corr **0,9767** |
+| quapy | 12 140 casos, 0,0091, 82,8%, corr 0,9665 | **identico em tudo** |
+| qunfold | 4 352 casos, 0,0097, 81,8%, corr 0,9702 | 3 844 casos, **0,0053**, **88,5%**, corr **0,9863** |
+| testes em AE | 13 de 28 (46,4%) | 12 de 27 (44,4%) |
+
+A quapy identica nos tres digitos e o controle da operacao: confirma que a
+renomeacao alcancou so o que devia. Nos testes sai apenas o `HDy`; o `KMM`
+ja nao era significativo, entao ele deixa o denominador e nao o numerador.
+Os postos do grupo mlquantify/qlib/quapy vao de 2,08 / 1,79 / 2,12 para
+2,03 / 1,91 / 2,06, porque o `HDy` saia justamente do grupo em que a
+mlquantify estava pior.
+
+A lista dos piores desacordos fica: `MS` contra quapy (0,0384), `PWK`
+contra quantificationlib (0,0355), `MS2` contra quapy (0,0203), `ACC`
+contra quapy (0,0190) e `DyS` contra quapy (0,0180). Os tres primeiros sao
+os registrados sem nota de diferenca **e** acusados pelo teste: sao os
+candidatos com a forma do `HDx`.
+
+**Q2 anda contra a proposta, e isso e evidencia a favor da separacao.**
+Contra a qunfold o tempo de treinamento vai de 1,05x para **1,08x**, e a
+mlquantify passa de mais barata em 41% para 33% dos casos; a memoria de
+treino vai de 0,99x para 1,00x. O `KMM` nao usa classificador e era um
+caso barato que saiu do pareamento. Contra a quantificationlib o
+treinamento vai de 0,88x para 0,87x. A quapy nao muda. **Q3** nao muda em
+nada: a renomeacao nao altera conclusao nem configuracao manual.
+
+**A ressalva que precisa estar aqui, e nao em nota de rodape.** Os numeros
+de Q1 melhoram para a proposta -- 30% contra a quantificationlib e 45%
+contra a qunfold. Quem ler depois vai cobrar a justificativa, e com razao.
+O que a sustenta e a ordem dos fatos: a regra estava escrita e aplicada
+contra a qunfold antes destes dois casos; a nota do `HDy` da qlib
+descrevia a variante de intervalo fixo antes de qualquer medicao; e a
+assimetria distingue os dois casos sem depender de nenhuma escolha. Nada
+disso foi decidido depois de ver o resultado. Mas a Q2 andando para o
+outro lado e o que mostra que o corte nao foi escolhido pelo efeito.
+
+A `final-separado` esta em `results/final-separado/`, com as tabelas em
+`analise/`, gerada pelos proprios `aggregate_results.py` e
+`analyze_results.py`. Partiu das parciais da `final-corrigido`, que ja
+contem a substituicao das 202 combinacoes, com o nome trocado em 565
+linhas de `HDy` da qlib, 520 de `MMD` da qunfold e 281 entradas de ledger.
+A `final-corrigido` e a `final-alinhado` nao foram alteradas.
 
 #### A PR #6: o custo do `MLPE` medido
 
@@ -1614,8 +1714,9 @@ existe, e por uma ordem de grandeza, nao por tres.
 desta sessao estao 1,26x deslocadas, e injetar linhas assim na Q2
 enviesaria o agregado -- exatamente o que a montagem da `final-corrigido`
 evitou ao nao substituir linhas cujo erro nao muda. O efeito da PR #6
-fica registrado aqui, como analise de sensibilidade, e a `final-corrigido`
-segue com o `MLPE` medido na 0.5.1.
+fica registrado aqui, como analise de sensibilidade, e tanto a
+`final-corrigido` quanto a `final-separado` seguem com o `MLPE` medido na
+0.5.1.
 
 ---
 
