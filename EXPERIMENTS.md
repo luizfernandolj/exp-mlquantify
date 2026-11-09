@@ -1636,7 +1636,33 @@ contra quapy (0,0190) e `DyS` contra quapy (0,0180). Os tres primeiros sao
 os registrados sem nota de diferenca **e** acusados pelo teste: sao os
 candidatos com a forma do `HDx`.
 
-**Q2 anda contra a proposta, e isso e evidencia a favor da separacao.**
+**Q2 passa a ter uma medida de tempo que lidera, e ela inverte a
+manchete.** O custo de usar a biblioteca e um treinamento mais a estimacao
+das 400 amostras, somados **antes** de parear -- a razao de uma soma nao e a
+soma das razoes. Essa medida entrou no `CUSTOS` da `analysis.py` na frente
+das duas fases, que ficaram: separadas elas carregam um resultado que o
+total esconde.
+
+| | treinamento | estimacao | treino + estimacao |
+| --- | --- | --- | --- |
+| quantificationlib | 0,87x (77%) | 1,41x (36%) | **1,12x (40%)** |
+| quapy | 0,95x (64%) | 1,03x (46%) | **0,96x (56%)** |
+| qunfold | 1,08x (33%) | 0,02x (100%) | **0,02x (100%)** |
+
+Entre parenteses, a fracao dos casos em que a mlquantify saiu mais barata.
+De ponta a ponta ela e **mais cara** que a quantificationlib, 1,12x e mais
+barata em so 40% dos casos, enquanto o treinamento isolado dava 0,87x em
+77%. A estimacao domina a soma, porque o treinamento e um unico ajuste e a
+estimacao sao 400 amostras. Reportar so o tempo de treinamento favorecia a
+proposta sem dizer isso.
+
+E a razao de 0,02x contra a qunfold mostra por que as fases nao foram
+colapsadas: num tempo unico ela aparece, mas o 1,08x do treinamento contra a
+mesma biblioteca desaparece, e e o unico lugar em que a mlquantify perde no
+treino.
+
+**Q2 anda contra a proposta tambem na comparacao entre as duas execucoes, e
+isso e evidencia a favor da separacao.**
 Contra a qunfold o tempo de treinamento vai de 1,05x para **1,08x**, e a
 mlquantify passa de mais barata em 41% para 33% dos casos; a memoria de
 treino vai de 0,99x para 1,00x. O `KMM` nao usa classificador e era um

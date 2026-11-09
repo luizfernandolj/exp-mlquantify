@@ -29,8 +29,38 @@ from .aggregate import REFERENCE, expand_aliases
 #: Medidas de erro de Q1. (coluna, rotulo)
 ERROS = [("mae", "AE"), ("mrae", "RAE"), ("mse", "SE"), ("nkld_medio", "NKLD")]
 
+#: Coluna derivada: o que uma combinacao custa de ponta a ponta, um
+#: treinamento mais a estimacao das 400 amostras. NAO e o `tempo_total_s`
+#: do summary, que e o relogio da combinacao inteira e inclui as repeticoes
+#: de `cost_repeats` -- por isso a razao das duas nao coincide.
+TEMPO_COMBINADO = "tempo_treino_mais_estimacao_s"
+
+
+def deriva_tempo_combinado(summary: pd.DataFrame) -> pd.DataFrame:
+    """Acrescenta a coluna do tempo de ponta a ponta, quando der.
+
+    Somar antes de parear, e nao somar duas razoes: a razao de uma soma nao
+    e a soma das razoes, e a pergunta de Q2 e quanto custa a combinacao
+    inteira.
+    """
+    precisa = ("tempo_treino_s", "tempo_estimacao_total_s")
+    if any(c not in summary.columns for c in precisa):
+        return summary
+    fora = summary.copy()
+    fora[TEMPO_COMBINADO] = sum(
+        pd.to_numeric(fora[c], errors="coerce") for c in precisa)
+    return fora
+
+
 #: Medidas de custo de Q2. (coluna, rotulo, unidade)
+#:
+#: O tempo combinado vem primeiro porque e por ele que se julga o custo de
+#: usar a biblioteca. As duas fases ficam depois, e nao foram colapsadas:
+#: separadas elas carregam um resultado que o total esconde -- contra a
+#: qunfold a razao de estimacao e 0,02x, cinquenta vezes, enquanto a de
+#: treinamento passa de 1.
 CUSTOS = [
+    (TEMPO_COMBINADO, "tempo de treinamento mais estimacao", "s"),
     ("tempo_treino_s", "tempo de treinamento", "s"),
     ("tempo_estimacao_total_s", "tempo de estimacao", "s"),
     ("memoria_treino_mb", "memoria no treinamento", "MB"),
@@ -675,7 +705,8 @@ def run(cfg, com_figuras: bool = True, erro: str = "mae") -> dict:
         raise FileNotFoundError(
             f"{summary_path} nao existe; rode aggregate_results.py primeiro")
 
-    summary = expand_aliases(pd.read_csv(summary_path, low_memory=False))
+    summary = deriva_tempo_combinado(
+        expand_aliases(pd.read_csv(summary_path, low_memory=False)))
     testes_path = cfg.run_dir / "testes_estatisticos.csv"
     testes = pd.read_csv(testes_path) if testes_path.exists() else pd.DataFrame()
     q3_path = cfg.run_dir / "q3_uso.csv"
