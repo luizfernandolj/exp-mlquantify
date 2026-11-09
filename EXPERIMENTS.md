@@ -1746,9 +1746,54 @@ existe, e por uma ordem de grandeza, nao por tres.
 desta sessao estao 1,26x deslocadas, e injetar linhas assim na Q2
 enviesaria o agregado -- exatamente o que a montagem da `final-corrigido`
 evitou ao nao substituir linhas cujo erro nao muda. O efeito da PR #6
-fica registrado aqui, como analise de sensibilidade, e tanto a
-`final-corrigido` quanto a `final-separado` seguem com o `MLPE` medido na
-0.5.1.
+fica registrado aqui, como analise de sensibilidade. A `final-corrigido` e
+a `final-separado` seguem com o `MLPE` medido na 0.5.1; a `final-mlpe`,
+adiante, adota a correcao.
+
+#### A execucao `final-mlpe`: o `MLPE` corrigido nos numeros oficiais
+
+A ressalva acima foi apresentada e dispensada: as linhas de custo do `MLPE`
+passam a vir do relogio desta sessao, e nao da sessao em que o resto foi
+medido. Fica registrado que e isso, e so isso, que a calibracao media.
+
+Medido na `.venv-pr6` -- 0.5.1 do PyPI com a PR #6 aplicada nos arquivos
+instalados, sem a #9 e a #10, que nao tocam o `MLPE`. 142 de 142
+combinacoes, **todas `ok`**, 0,66 h de CPU em 26 minutos. A substituicao
+trocou **apenas** as linhas de `mlquantify` + `MLPE`, em 142 parciais e 142
+entradas de ledger; todo o resto veio da `final-separado`.
+
+| | 0.5.1 | com a PR #6 | quapy | razao antes | razao depois |
+| --- | --- | --- | --- | --- | --- |
+| tempo de treinamento | 0,2690 s | **0,0571 s** | 0,0001 s | 1 307x | **347x** |
+| tempo de estimacao | 0,0091 s | 0,0102 s | 0,0066 s | 1,35x | 1,32x |
+| memoria no treinamento | 0,8873 MB | **0,1853 MB** | 0,0310 MB | 24,0x | **6,9x** |
+| memoria na estimacao | 0,2299 MB | 0,1935 MB | 0,0702 MB | 2,57x | 1,90x |
+
+Treinamento 4,7x mais rapido e memoria de treino 4,8x menor. No tempo
+combinado, que e por onde a Q2 julga o custo, a razao contra a quapy cai de
+**27,4x para 8,51x**. A estimacao nao muda, como tem de ser: o `predict`
+devolve `train_priors_` e nunca foi o problema.
+
+**E houve ganho de cobertura, que nao estava previsto.** Na
+`final-separado` o `MLPE` tinha 560 linhas `ok` e **2 `timeout`**: o
+`fashion-mnist.csv` e o `Dermatology.csv` nao completavam dentro do limite
+de 1800 s por metodo, justamente porque o caminho antigo ajustava o
+estimador seis vezes. Com a correcao os dois completam, e o `MLPE` fica com
+568 linhas, todas `ok`. Consequencias:
+
+* Q1 contra a quapy vai de 12 140 para **12 148** casos pareados, e o erro
+  segue identico ao da quapy em todo caso (diferenca `0,000000`) -- a media
+  de AE anda de 0,2609 para 0,2593 porque o conjunto de casos cresceu, nao
+  porque alguma estimativa mudou;
+* a taxa de conclusao da mlquantify vai de 0,9915 para **0,9920**;
+* os `timeout` do ledger caem de 121 para 119.
+
+As razoes agregadas de Q2 praticamente nao se movem -- o `MLPE` e um metodo
+entre os 22 pareados com a quapy, e as medianas sao sobre milhares de casos.
+O que muda e o metodo, nao o agregado.
+
+A `final-mlpe` esta em `results/final-mlpe/`. A `final-separado`, a
+`final-corrigido` e a `final-alinhado` nao foram alteradas.
 
 ---
 
