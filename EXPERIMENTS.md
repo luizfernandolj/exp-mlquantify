@@ -1795,6 +1795,66 @@ O que muda e o metodo, nao o agregado.
 A `final-mlpe` esta em `results/final-mlpe/`. A `final-separado`, a
 `final-corrigido` e a `final-alinhado` nao foram alteradas.
 
+#### A execucao `final-mlpe-na`: o `MLPE` deixa de ser agregativo
+
+A tabela acima deixou uma pergunta em aberto: corrigido, o `MLPE` ainda
+custava **347x** o da quapy no treinamento. A resposta e que sobrava
+exatamente **um ajuste de classificador**, e a prova e o `CC`, que treina um
+classificador e mais nada:
+
+| metodo | mlquantify | quapy | razao |
+| --- | --- | --- | --- |
+| `CC` | 0,0523 s | 0,0549 s | 1,0x |
+| `MLPE` (com a PR #6) | 0,0571 s | 0,0001 s | 347x |
+
+O `MLPE` custava o que o `CC` custa. E o denominador era ~zero porque **a
+quapy nao treina classificador nenhum**: o
+`MaximumLikelihoodPrevalenceEstimation` vive em `non_aggregative.py`, nao
+recebe estimador, e o `fit` tem duas linhas que contam rotulos. Os 347x nao
+eram lentidao, eram duas bibliotecas implementando o mesmo metodo como
+objetos de natureza diferente.
+
+**A mudanca** (`coenlab/mlquantify#14`) faz o `MLPE` da mlquantify ser do
+mesmo tipo: a classe perde o `SoftPredictionMixin` e o `AggregativeMixin`,
+passa `representation=None` e `aggregative=False`, e saem da assinatura o
+`estimator`, o `cv`, o `stratified` e o `shuffle`. Com `aggregative=False` o
+`_uses_estimator_predictions()` fica `False`, e o `fit` toma o caminho que le
+o `train_priors_` dos rotulos. Nada e treinado, e nao ha mais `estimator_`.
+
+Os parametros que sobraram sao exclusivos de palavra-chave de proposito: com
+posicionais, um `MLPE(LogisticRegression())` escrito para a assinatura antiga
+ligaria o classificador ao `solver` e rodaria malconfigurado em silencio.
+Quem achou isso foi o proprio teste, que falhou com `DID NOT RAISE`.
+
+No harness bastou `needs_classifier=False`: o `_mlq` passa a construir
+`cls(**prot)`, e o `_protocolo` filtra pela assinatura, entao `cv`,
+`stratified` e `shuffle` simplesmente deixam de ser escritos.
+
+**Medido.** 142 de 142 combinacoes, todas `ok`, em **0,014 h de CPU** --
+50 segundos, contra 0,66 h da versao com a PR #6. Tres minutos de relogio
+contra vinte e seis.
+
+| | com a PR #6 | nao agregativo | quapy | razao antes | razao agora |
+| --- | --- | --- | --- | --- | --- |
+| tempo de treinamento | 0,0571 s | **0,0006 s** | 0,0001 s | 347x | **4,99x** |
+| tempo de estimacao | 0,0102 s | 0,0092 s | 0,0066 s | 1,32x | 1,30x |
+| memoria no treinamento | 0,1853 MB | **0,0691 MB** | 0,0310 MB | 6,90x | **2,04x** |
+| memoria na estimacao | 0,1935 MB | 0,0705 MB | 0,0702 MB | 1,90x | **1,00x** |
+
+No tempo combinado a razao contra a quapy vai de 8,51x para **1,38x** -- e,
+contando desde a 0.5.1, de 27,4x para 1,38x. A memoria de estimacao fica
+**igual** a da quapy. O que sobra de 4,99x no treinamento sao 0,5 ms: a
+mlquantify ainda passa pelo `validate_data` e pela canalizacao do `compose`,
+e a quapy nao.
+
+**O erro nao muda, e isso foi conferido e nao suposto.** `0,25928454` nas
+duas execucoes, contra os mesmos `0,25928454` da quapy, com diferenca de
+`7,8e-19`. No `q1_testes` o que se move sao os postos medios das medidas de
+**custo**, na terceira casa; nenhuma linha de erro muda.
+
+A `final-mlpe-na` esta em `results/final-mlpe-na/`. As execucoes anteriores
+nao foram alteradas.
+
 ---
 
 ## 12. Organizacao do codigo
