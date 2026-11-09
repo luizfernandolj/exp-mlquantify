@@ -500,12 +500,23 @@ _qlib("EMQ", "verossimilhanca", "multiclass.em", "EM", train_cv=False,
       notes="escores do classificador treinado na particao inteira, como "
             "nas outras tres; a classe exige o estimador de treino assim "
             "mesmo")
-_qlib("HDy", "casamento de distribuicoes", "multiclass.df", "HDy",
-      notes="um unico numero de intervalos (8, largura igual). A "
-            "definicao do metodo varre intervalos e toma a mediana das "
-            "estimativas, que e o que a mlquantify e a quapy fazem; aqui "
-            "n_bins e escalar e nao aceita a varredura, entao esta "
-            "coluna e uma variante de intervalo fixo")
+# Nome canonico proprio, e por isso NAO pareado com o ``HDy``: a classe usa
+# um unico numero de intervalos (``n_bins=8``, ``bin_strategy=equal_width``,
+# os padroes dela), enquanto a definicao do metodo varre intervalos e toma a
+# mediana das estimativas, que e o que a mlquantify e a quapy fazem. Sao dois
+# estimadores, nao duas implementacoes de um -- a mesma regra que ja vale
+# para as formulacoes generalizadas da qunfold, logo abaixo.
+#
+# Medido enquanto ainda estava pareado como ``HDy``: 0,0434 de diferenca
+# absoluta media contra a mlquantify, com a mlquantify melhor em so 15,2% dos
+# 560 casos e p = 1,4e-29. Discordancia enviesada numa direcao, que e a
+# assinatura de estimador diferente, nao de implementacao divergente.
+_qlib("HDyFix", "casamento de distribuicoes", "multiclass.df", "HDy",
+      notes="variante de intervalo fixo do HDy: n_bins escalar (8, largura "
+            "igual) em vez da varredura de intervalos com mediana das "
+            "estimativas que a definicao do metodo pede. Nao e comparavel "
+            "com o HDy da mlquantify e da quapy, e por isso tem nome "
+            "canonico proprio e nenhum alias para HDy")
 _qlib("SORD", "casamento de distribuicoes", "binary.emd", "SORDy", binary_only=True)
 _qlib("EDy", "casamento de distribuicoes", "multiclass.energy", "EDy",
       kwargs={"distance": _euclidean},
@@ -617,8 +628,19 @@ _qunfold("EMQ", "verossimilhanca", "LikelihoodMaximizer", needs_cv=False)
 _qunfold("GHDy", "casamento de distribuicoes", "HDy", needs_bins=True,
          notes="a classe qunfold.HDy e a formulacao generalizada (GHDy)")
 _qunfold("EDy", "casamento de distribuicoes", "EDy")
-_qunfold("MMD", "casamento de distribuicoes", "KMM", needs_classifier=False,
-         notes="KMM com nucleo de energia")
+# Tambem com nome proprio, pelo mesmo motivo: ``qunfold.KMM`` e kernel mean
+# matching com nucleo de energia, e o ``MMD`` da mlquantify e o
+# ``MMD_RKHS``, com nucleo RBF. Mesmo arcabouco, nucleo diferente, logo
+# estimadores diferentes.
+#
+# Medido enquanto estava pareado como ``MMD``: 0,0428 de diferenca absoluta
+# media, mas com a mlquantify melhor em 51,2% dos 508 casos e p = 0,133 --
+# magnitude sem vies e sem sistematicidade, que e o que se ve comparando
+# dois metodos distintos de qualidade parecida, e nao duas implementacoes
+# do mesmo metodo.
+_qunfold("KMM", "casamento de distribuicoes", "KMM", needs_classifier=False,
+         notes="kernel mean matching com nucleo de energia. Nao e pareado "
+               "com o MMD da mlquantify, que e o MMD_RKHS com nucleo RBF")
 _qunfold("GHDx", "nao agregativo", "HDx", needs_classifier=False, needs_bins=True,
          notes="a classe qunfold.HDx e a formulacao generalizada (GHDx)")
 _qunfold("EDx", "nao agregativo", "EDx", needs_classifier=False)
