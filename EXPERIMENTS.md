@@ -1347,9 +1347,9 @@ Dois contrastes valem a discussao de Q1:
 
 Tudo nesta secao foi medido contra a `mlquantify 0.5.1` instalada do PyPI
 (instalacao normal, nao editavel: a venv do experimento nao ve o checkout de
-desenvolvimento). Parte do que a secao relata tem correcao escrita e nao
-revisada; as PRs #9 e #10 foram medidas na execucao `sens_corrigido`, no
-fim desta secao.
+desenvolvimento). Parte do que a secao relata tem correcao escrita, revisada
+e fundida na `master` da biblioteca; as PRs #9 e #10 foram medidas na
+execucao `sens_corrigido` e a #6 na `sens_pr6`, no fim desta secao.
 
 | PR | O que muda | Afeta | Esta na 0.5.1? |
 | --- | --- | --- | --- |
@@ -1358,6 +1358,16 @@ fim desta secao.
 | #6 `MLPE` | ajusta o estimador uma vez em vez de validar cruzado | **custo do `MLPE`** (os 1 376x e 67x acima) | nao |
 | #8 `CDE` | so docstring, nenhuma linha de codigo | nada | nao |
 | #7 CI | so o workflow de teste | nada | nao |
+
+**Estado das correcoes em 09/11/2026.** As cinco foram revisadas e fundidas
+na `master` de `coenlab/mlquantify`, cada uma como um commit de squash: #7
+em `540db346`, #10 em `51d43830`, #6 em `ce89bad1`, #8 em `68e23a64` e #9
+em `8340e071`. A revisao achou dois defeitos anteriores de documentacao, que
+foram para PRs proprias (`#11`, a entrada de `bin_edges` que faltava no
+`HistogramRepresentation`, e `#13`, o rotulo da secao v0.3.0 no CHANGELOG), e
+as mudancas foram registradas no CHANGELOG em `#12`. Isso nao muda nada do
+que esta medido aqui: a coluna acima continua valendo, porque a `master` nao
+e uma versao publicada e a medicao usou a 0.5.1 do PyPI.
 
 Duas verificacoes que sustentam a comparacao, e que vale registrar porque o
 harness depende da biblioteca que ele avalia:
@@ -1370,7 +1380,11 @@ harness depende da biblioteca que ele avalia:
   so o `UPP(...).split()`, calculando as metricas por conta propria. As 400
   amostras por combinacao sao as mesmas.
 * **Nada publicado depois da 0.5.1 altera comportamento.** O diff de
-  `v0.5.1` para `v0.5.2b3` em `mlquantify/` e vazio.
+  `v0.5.1` para `v0.5.2b3` em `mlquantify/` e vazio. As tres betas da
+  `v0.5.2` estao marcadas na `master`, e as correcoes acima entraram depois
+  da `v0.5.2b3`: uma `v0.5.2` final passa a carregar o `HDx` com bordas por
+  atributo e o vetor nulo corrigido. A medicao descreve a 0.5.1, e a analise
+  de sensibilidade adiante antecipa essa release.
 
 E uma ausencia, que nao e correcao: **o grupo `elm` nao existe na 0.5.1.**
 O pacote instalado nao tem o modulo; o branch de desenvolvimento adiciona
