@@ -1455,6 +1455,12 @@ a ser encabecada pelo `HDy` contra a quantificationlib (0,0436). O que a
 `final-alinhado` registrou como desacordo entre implementacoes era o
 defeito das bordas do histograma.
 
+Esse `HDy` na cabeca da lista tambem nao durou: a subsecao da
+`final-separado` mostra que o `HDy` da quantificationlib e uma variante de
+intervalo fixo, e nao a mesma coisa que o `HDy` da mlquantify e da quapy.
+Com ele e o `KMM` fora do pareamento, a lista passa a ser encabecada pelo
+`MS` contra a quapy (0,0384).
+
 **PR #10, o vetor nulo.** As 20 combinacoes que a `final-alinhado` perdeu
 inteiras com `TooManyInvalidSamples` **completam todas**: `CDE` 10, `ACC`
 3, `TAC` 3, `MS` 2, `MS2` 1, `HDy` 1. O descarte parcial tambem zera: as
