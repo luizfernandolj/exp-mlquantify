@@ -1028,6 +1028,76 @@ desta secao):
   de validar cruzado, o `fit` cai de 6 treinamentos para 1, o erro nao
   muda, e o composto contra a QuaPy cai de 27,4x para 9,9x.
 
+### O `random_state` do `solve_simplex` na mlquantify
+
+Encontrado ao explicar por que a qunfold custa o que custa, comparando os
+solucionadores das duas. **Fica anotado e nao foi consertado**, por decisao de
+quem conduz o experimento: o efeito medido esta abaixo do que a analise
+reporta, e mexer na biblioteca agora invalidaria as medicoes.
+
+**O que acontece.** O `minimize_prevalence` da mlquantify despacha por
+estrutura: com duas classes vai para `solve_binary`, que no modo `bounded`
+(o padrao) e uma busca escalar em [0, 1] e **nao tem parametro `x0`**; com
+mais classes vai para `solve_simplex`, que resolve por SLSQP com
+`bounds=[(0,1)]*n` e a restricao de soma. E ali esta a surpresa: o `x0` do
+SLSQP e `1/n` **quando `random_state` e None**, e um ponto aleatorio do
+simplex quando nao e. O experimento passa `random_state=42` a toda classe
+que o aceite (ver `_protocolo` em `registry.py`), entao as combinacoes
+multiclasse partem de um ponto arbitrario, nao do uniforme.
+
+Nao e aleatoriedade por amostra: `_random_simplex_start(42, n)` refaz o
+`RandomState` a partir de 42 em cada chamada, de modo que e **um ponto fixo
+arbitrario**, igual nas 400 amostras. A execucao se repete.
+
+**Quanto isso muda, medido.** Isolando o solucionador -- mesmo `M`, mesmo `q`,
+so o `x0` diferente, com dados sinteticos:
+
+| objetivo | n | sacos que mudaram | dif. mediana | dif. maxima |
+| --- | --- | --- | --- | --- |
+| minimos quadrados | 5 | 79,0% | 2,5e-6 | 1,3e-5 |
+| Hellinger | 5 | 5,0% | 2,1e-9 | 6,9e-6 |
+| minimos quadrados | 50 | 100% | 6,3e-5 | **2,6e-4** |
+| Hellinger | 50 | 85,0% | 2,6e-6 | 1,3e-5 |
+
+O pior caso -- 50 classes, que 6 conjuntos do catalogo tem -- move a
+estimativa em no maximo 2,6e-4, **uma ordem de grandeza abaixo do limiar de
+1e-3** com que a Q1 chama duas bibliotecas de iguais. Nao vira veredito
+nenhum. E o alcance e menor do que parece: 108 dos 142 conjuntos (76,1%) sao
+binarios e vao pelo caminho que ignora o `x0`; so os 34 multiclasse chegam
+ao `solve_simplex`.
+
+**E o que os numeros mostram e tolerancia, nao dois otimos.** O objetivo
+convexo move *mais*, o que a primeira vista e ao contrario: minimos quadrados
+tem otimo unico, as duas partidas chegam nele, e o que sobra e a folga de
+parada do SLSQP -- maior ali porque a superficie e mais plana perto do otimo.
+O Hellinger normalizado tem bacia mais afiada e as duas partidas caem dentro
+de 2e-9 na maioria dos sacos. Nenhum sinal de multimodalidade morder.
+
+**O custo.** 1,594 para 1,851 ms por resolucao nos minimos quadrados com
+n=5 (+16%); 13,1 para 13,6 ms no Hellinger (+3,6%); com n=50, 1,00x e 1,12x.
+Alguns por cento do tempo de estimacao multiclasse num quarto dos conjuntos,
+invisivel dentro das medianas da Q2.
+
+**Por que ainda assim vale consertar depois.** Nao pelos numeros, pela
+semantica: na convencao do scikit-learn o `random_state` **semeia**
+aleatoriedade que ja existe, e aqui ele a **introduz**. Quem passa
+`random_state=42` para ter reprodutibilidade recebe uma partida pior
+condicionada do que quem nao passa nada -- o parametro pune o usuario
+cuidadoso. E o padrao descartado e o melhor: `1/n` e o prior desinformado e
+fica perto das solucoes tipicas, enquanto o ponto aleatorio esta a 0,477 em
+L1 dele com n=50, que e exatamente por que custa mais iteracoes. O conserto
+seria `x0` uniforme sempre, `x0` exposto para quem quiser escolher, e
+reinicios aleatorios -- se um dia forem desejados, para sondar
+multimodalidade -- com parametro proprio em vez de pegar carona no
+`random_state`.
+
+**Uma ressalva sobre o reparo final.** O `solve_simplex` termina com
+`np.clip(prevalence, 0, None)` e renormaliza. Isso e arremate numerico depois
+de um solucionador que ja impos os limites e a igualdade -- o SLSQP satisfaz
+restricoes dentro da tolerancia dele, nao exatamente --, e nao se confunde
+com o `clip` da quapy, que e a unica coisa entre uma solucao sem restricao e
+o simplex.
+
 ### Limitacoes de escala observadas na execucao
 
 As anteriores aparecem ao escrever o codigo. Estas so aparecem ao rodar, e
