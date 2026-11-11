@@ -465,6 +465,55 @@ def _qlib_cv(ctx: Ctx):
     return CV_estimator(estimator=ctx.make_clf(), cv=cv)
 
 
+class _VarreduraIntervalos:
+    """Varre numeros de intervalos e devolve a mediana das estimativas.
+
+    A ``HDy`` da quantificationlib recebe ``n_bins`` escalar e o usa como
+    dimensao de array, entao a varredura que a definicao do metodo pede nao
+    cabe dentro dela. Este envelope faz por fora o que a mlquantify faz por
+    dentro, com os mesmos intervalos e a mesma agregacao.
+
+    Custa uma varredura, nao onze execucoes: as instancias dos estimadores
+    sao compartilhadas entre os ajustes, e a ``fit`` da biblioteca detecta
+    que elas ja estao ajustadas e nao as reajusta. As predicoes de treino e
+    de teste vao prontas do primeiro para os demais, de modo que o
+    classificador roda uma vez e o que se repete e so o histograma e a
+    otimizacao -- que e justamente o que a varredura multiplica.
+    """
+
+    def __init__(self, fabrica, bins):
+        self._fabrica = fabrica
+        self._bins = list(bins)
+        self._qs = []
+
+    def fit(self, X, y):
+        self._qs = []
+        pred_treino = None
+        for b in self._bins:
+            q = self._fabrica(b)
+            if pred_treino is None:
+                q.fit(X, y)
+                pred_treino = q.predictions_train_
+            else:
+                q.fit(X, y, predictions_train=pred_treino)
+            self._qs.append(q)
+        return self
+
+    def predict(self, X):
+        import numpy as np
+
+        pred_teste = None
+        estimativas = []
+        for q in self._qs:
+            if pred_teste is None:
+                p = q.predict(X)
+                pred_teste = q.predictions_test_
+            else:
+                p = q.predict(X, predictions_test=pred_teste)
+            estimativas.append(np.asarray(p, dtype=float).ravel())
+        return np.median(np.vstack(estimativas), axis=0)
+
+
 def _qlib(canonical, family, module, cls_name, *, needs_train=True,
           train_cv=True, binary_only=False, needs_classifier=True,
           group="core", aliases=(), notes="", kwargs=None):
@@ -549,6 +598,42 @@ _qlib("HDy", "casamento de distribuicoes", "multiclass.df", "HDy",
       notes="recebe n_bins escalar (8, largura igual) em vez da varredura de "
             "intervalos com mediana das estimativas que a definicao do metodo "
             "pede, que e o que a mlquantify e a quapy fazem")
+# Sensibilidade, fora das execucoes oficiais (grupo ``sens``, que o
+# ``DEFAULT_GROUPS`` nao inclui): o mesmo ``HDy`` da quantificationlib, mas
+# com a varredura de intervalos em vez do ``n_bins=8`` fixo. Serve para
+# separar quanto da discordancia do par ``HDy`` vem da parametrizacao e
+# quanto vem da implementacao. Os intervalos sao os mesmos que a mlquantify
+# usa por padrao -- ``linspace(10, 110, 11)``, agregados pela mediana --,
+# para que o envelope comparado seja o mesmo dos dois lados.
+_HDY_BINS = tuple(range(10, 111, 10))
+
+
+def _build_hdy_varrido(ctx: Ctx):
+    from quantificationlib.multiclass.df import HDy as _HDyQlib
+
+    # MANUAL: as duas instancias sao criadas uma vez e compartilhadas por
+    # todos os ajustes da varredura, para o classificador rodar uma vez so.
+    treino = _qlib_cv(ctx)
+    teste = ctx.make_clf()
+
+    def fabrica(n_bins):
+        return _HDyQlib(estimator_train=treino, estimator_test=teste,
+                        n_bins=n_bins, bin_strategy="equal_width")
+
+    return _VarreduraIntervalos(fabrica, _HDY_BINS)
+
+
+register(MethodSpec(
+    canonical="HDySweep", family="casamento de distribuicoes",
+    library="quantificationlib",
+    class_name="quantificationlib.multiclass.df.HDy (varrido)",
+    build_adapted=_build_hdy_varrido, group="sens",
+    manual_configs=2,
+    notes="o HDy da quantificationlib com a varredura de intervalos de 10 a "
+          "110 e mediana das estimativas, em vez do n_bins=8 fixo. Nao e um "
+          "metodo da biblioteca: e o envelope da definicao do metodo aplicado "
+          "por fora, para medir quanto da discordancia vem da parametrizacao"))
+
 _qlib("SORD", "casamento de distribuicoes", "binary.emd", "SORDy", binary_only=True)
 _qlib("EDy", "casamento de distribuicoes", "multiclass.energy", "EDy",
       kwargs={"distance": _euclidean},
@@ -656,7 +741,33 @@ _qunfold("GACC", "contagem ajustada", "ACC",
          notes="a classe qunfold.ACC e a formulacao generalizada (GACC)")
 _qunfold("GPACC", "contagem ajustada", "PACC",
          notes="a classe qunfold.PACC e a formulacao generalizada (GPACC)")
-_qunfold("EMQ", "verossimilhanca", "LikelihoodMaximizer", needs_cv=False)
+# O par do EMQ e o ``ExpectationMaximizer``, nao o ``LikelihoodMaximizer``.
+# Os dois existem na qunfold e a propria biblioteca os distingue pela
+# referencia: o ``ExpectationMaximizer`` e Saerens et al. (2002), o mesmo
+# algoritmo EM do EMQ da mlquantify, da quapy e da quantificationlib; o
+# ``LikelihoodMaximizer`` e Alexandari et al. (2020), que minimiza a
+# log-verossimilhanca negativa regularizada com o otimizador generico. A
+# qunfold diz que sao "asymptotically equivalent", o que e uma afirmacao
+# sobre o limite, nao sobre o que cada um calcula numa amostra de 10 itens.
+# Pareado com o ``LikelihoodMaximizer``, o EMQ media EM contra otimizacao
+# numerica, que e a mesma confusao que o ACC/GACC e o HDy produziam.
+_qunfold("EMQ", "verossimilhanca", "ExpectationMaximizer", needs_cv=False,
+         notes="EM de Saerens et al. (2002), o mesmo algoritmo do EMQ das "
+               "outras tres: laco iterativo com max_iter=100 e tol=1e-6, sem "
+               "otimizador generico e sem ponto de partida aleatorio")
+# Nome canonico proprio, e por isso sem par na mlquantify: e um metodo
+# diferente, nao outra implementacao do EMQ. A mlquantify tem o arcabouco
+# correspondente -- o ``LikelihoodComposeQuantifier`` com a
+# ``RegularizedMixtureNLLLoss``, com os mesmos ``tau_0`` e ``tau_1`` --, mas
+# nao expoe um quantificador nomeado que o use como maximizador de
+# verossimilhanca; o ``MLPE`` o sobrescreve para devolver a prevalencia de
+# treino. Se um dia expuser, este e o par dele.
+_qunfold("MLQ", "verossimilhanca", "LikelihoodMaximizer", needs_cv=False,
+         notes="maxima verossimilhanca de Alexandari et al. (2020): minimiza "
+               "a log-verossimilhanca negativa regularizada (tau_0, tau_1) "
+               "com trust-ncg e Hessiana por autodiferenciacao. Medido como "
+               "EMQ ate a execucao final-emq, o que pareava EM contra "
+               "otimizacao numerica")
 _qunfold("GHDy", "casamento de distribuicoes", "HDy", needs_bins=True,
          notes="a classe qunfold.HDy e a formulacao generalizada (GHDy)")
 _qunfold("EDy", "casamento de distribuicoes", "EDy")

@@ -22,7 +22,7 @@ ALL_LIBRARIES = ("mlquantify", "quapy", "quantificationlib", "qunfold")
 #: Grupos de metodos. ``core`` e o conjunto executado por padrao; ``elm`` e
 #: ``neural`` dependem de codigo que ainda nao esta na versao publicada da
 #: mlquantify (outro branch) e ficam para uma execucao posterior.
-ALL_GROUPS = ("core", "meta", "elm", "neural", "text")
+ALL_GROUPS = ("core", "meta", "elm", "neural", "text", "sens")
 DEFAULT_GROUPS = ("core",)
 
 
