@@ -2074,6 +2074,177 @@ as tres.
 A `final-ajustado` esta em `results/final-ajustado/`, e as anteriores nao
 foram alteradas.
 
+#### A execucao `final-emq`: EM contra otimizacao numerica
+
+A qunfold tem **dois** metodos de verossimilhanca e a propria biblioteca os
+distingue pela referencia: o `ExpectationMaximizer` e Saerens et al. (2002),
+o mesmo algoritmo EM do `EMQ` das outras tres; o `LikelihoodMaximizer` e
+Alexandari et al. (2020), que minimiza a log-verossimilhanca negativa
+regularizada com `trust-ncg` e Hessiana por autodiferenciacao. O registro
+pareava o `EMQ` com o **segundo**.
+
+Consertado, o par passa a ser o `ExpectationMaximizer`, e o
+`LikelihoodMaximizer` ganha nome canonico proprio, `MLQ`, no grupo `core` --
+e um metodo que o usuario da qunfold recebe e conta para Q3, so nao tem par,
+porque a mlquantify nao expoe um maximizador de verossimilhanca nomeado.
+
+| | par antigo (`LikelihoodMaximizer`) | par certo (`ExpectationMaximizer`) |
+| --- | --- | --- |
+| diferenca absoluta media | 0,005949 | **0,000127** |
+| iguais ate 1e-3 | 80,3% | **99,6%** |
+| estimacao, mediana | 102,6 s | **5,19 s** |
+
+A diferenca cai **47 vezes**. E o custo: os 357x que a leitura anterior
+atribuiu a arquitetura da qunfold eram artefato do par errado -- contra os
+0,3397 s da mlquantify o numero real e **15,3x**, e o que sobra e o JAX
+rodando um laco EM sobre arranjos minusculos sem `jit`, nao um otimizador.
+
+As 568 linhas gravadas como `qunfold | EMQ` foram medidas com o
+`LikelihoodMaximizer`; a execucao derivada as renomeia para `MLQ` e recebe o
+`EMQ` novo, medido em 142 de 142 sem falha. Nada foi descartado.
+
+#### A execucao de sensibilidade `sens-hdy`: a varredura do `HDy`
+
+Mediu o `HDy` da quantificationlib com a varredura de intervalos que a
+definicao do metodo pede (10 a 110, mediana das 11 estimativas) em vez do
+`n_bins=8` fixo, para separar parametrizacao de implementacao. **Nao serve**,
+e o motivo e o achado:
+
+* 131 `ok`, 7 `timeout`, 4 `erro`, contra 141 `ok` e 1 `timeout` do `HDy` de
+  intervalo fixo nos mesmos 142 conjuntos. A varredura **quebra 10 conjuntos
+  que a versao fixa resolve**, e nao ao acaso: sao os de muitas classes.
+* O `erro` e da biblioteca. Em `optimization.py:132` a qlib faz
+  `list(problem.solution.primal_vars.values())[0]` sem conferir o status do
+  cvxpy: quando o `solve` nao acha solucao, `primal_vars` vem vazio e o
+  acesso estoura. Dispara com amostra de 10 itens e 110 intervalos sobre 10
+  classes, onde o histograma de teste e quase todo zero.
+
+Por isso o alinhamento foi feito no sentido inverso -- o `HDy8`, com os 8
+intervalos da qlib dos dois lados --, e o `HDy` varrido segue como par da
+quapy, que fixa a mesma varredura no codigo e nao aceita parametro.
+
+**Um defeito do proprio arcabouco apareceu aqui.** O `Mfeat` teve **1 falha
+em 400 amostras**, abaixo do limite de 5%, e mesmo assim a combinacao inteira
+foi perdida com a mensagem crua da biblioteca: o `_measure_memory` repetia as
+400 estimativas **sem protecao por amostra**, enquanto o `_predict_all`
+tolera ate `MAX_INVALID_FRACTION`. Consertado -- as estimativas da medicao de
+memoria agora sao protegidas uma a uma e, passado o limite, devolve-se `nan`
+no custo em vez de derrubar a combinacao. Conferido que isso nao corrompeu os
+numeros oficiais: dos 52 erros de mensagem crua da `final-emq`, todos tem
+causa genuina (asseroes da propria quapy no `SMM`, alocacoes de 173 GiB).
+
+#### A execucao de sensibilidade `sens-limiar`: a grade de limiares
+
+A `evaluate_thresholds` da mlquantify tem dois modos. O padrao,
+`score_edges="fixed"`, varre `np.linspace(0, 1, 101)`; o outro varre
+`np.unique(probabilities)`, que e o que a quapy faz e o que Forman define. O
+modo **nao esta exposto no quantificador**: o `_adjust` chama a funcao sem o
+argumento. Esta execucao mede os cinco metodos de limiar com a varredura
+exata, em 135 dos 142 conjuntos.
+
+| metodo | grade de 101 | varredura exata | fator |
+| --- | --- | --- | --- |
+| `MS` | 0,0383 (6,7% ate 1e-3) | **0,0046 (51,7%)** | **0,12x** |
+| `T50` | 0,0175 (19,8%) | **0,0098 (37,9%)** | 0,56x |
+| `MS2` | 0,0199 (13,8%) | 0,0166 (53,8%) | 0,84x |
+| `X` | 0,0081 (40,9%) | 0,0067 (53,0%) | 0,83x |
+| `MAX` | 0,0087 (33,4%) | 0,0091 (37,7%) | 1,05x |
+
+O conserto fecha o vao **na proporcao em que cada criterio depende do
+conjunto de candidatos**, que e o que torna o argumento causal e nao
+correlacional: o `MS` toma a mediana sobre **todos** os limiares -- o
+conjunto *e* a resposta -- e cai 8 vezes, encostando no piso de ruido do par
+(~0,006); o `T50` precisa acertar tpr = 0,5 e cai pela metade; o `MAX`, que
+otimiza um criterio de otimo largo, **nao se mexe**. A concordancia ate 1e-3
+melhora nos cinco, inclusive onde a media nao muda: a grade introduz uma
+quantizacao que afeta todos um pouco e o `MS` muito.
+
+**E a grade nao e descuido, e escala.** A varredura exata e O(*n*) no tamanho
+do treino contra O(1) da grade: no `Dermatology`, com 500 mil linhas de
+treino, sao 500 mil limiares candidatos em vez de 101. A execucao nao
+terminou em 7 dos 142 conjuntos, todos os maiores -- a forma fiel
+simplesmente nao roda nessa escala.
+
+### O que seria preciso para os erros baterem
+
+Auditoria dos 39 pares da `final-emq`, em resposta a pergunta direta de
+quanto falta para a correspondencia ser exata.
+
+**Batem a 1e-6 apenas tres:** `CC`, `PCC` e `MLPE` -- e sao exatamente os
+tres que **nao consomem escores fora da amostra**. Os dois primeiros contam
+com o classificador treinado na particao inteira; o terceiro ignora o teste.
+
+**O piso de todo o resto sao as dobras da validacao cruzada**, e ele nao e
+removivel por parametro: a quapy nao expoe o embaralhamento (`val_split`
+inteiro cai em `StratifiedKFold(shuffle=False)`) enquanto a mlquantify
+embaralha com `random_state`. Dobras diferentes dao escores diferentes, e
+dai em diante tudo difere.
+
+**Provado entregando os mesmos escores as quatro.** Ajustando o classificador
+uma vez e passando os mesmos `predict_proba` pelos pontos de entrada que
+aceitam predicoes prontas -- `aggregate` na mlquantify, `aggregation_fit` e
+`aggregate` na quapy, `predictions_train=` e `predictions_test=` na qlib,
+classificador fixo na qunfold --, o `EMQ` da:
+
+| conjunto | quapy | quantificationlib | qunfold |
+| --- | --- | --- | --- |
+| banana | **1,1e-16** | **1,1e-16** | 5,39e-03 |
+| german | **0** | **0** | 5,84e-05 |
+| breast-cancer | 5,9e-10 | 5,9e-10 | 6,70e-06 |
+
+Tres das quatro ficam **bit a bit identicas**. A discordancia de 0,0046 dos
+numeros oficiais era inteiramente a particao das dobras.
+
+**O residuo da qunfold e o criterio de parada, nao precisao.** A hipotese
+inicial era o float32 do JAX; ligando `jax_enable_x64` o residuo nao se move
+(5,390e-03 para 5,388e-03). A causa e a norma: a qunfold compara iteracoes
+pela **norma L2**, a qlib por erro absoluto medio, e a mlquantify expoe isso
+num parametro `criteria` (padrao MAE) -- num vetor binario e um fator raiz de
+2. Com `tol=1e-10` o residuo cai de 5,39e-03 para **7,47e-06**: todas
+convergem ao mesmo ponto fixo e so param em lugares diferentes da
+aproximacao. O tamanho do residuo acompanha a lentidao da convergencia.
+
+**Parametros a anotar na mlquantify**, achados comparando os padroes dos
+construtores par a par:
+
+| o que | mlquantify | as outras | efeito |
+| --- | --- | --- | --- |
+| `EMQ`: `max_iter` | 100 | 1000 (quapy e qlib) | **truncava o EM**: no banana a estimativa muda 0,144 entre 100 e 1000 |
+| `EMQ`: `tol` | 1e-4 | qunfold 1e-6 | para mais cedo que a qunfold |
+| `on_calib_error` | `'backup'` | quapy `'raise'` | cai em reserva **em silencio** onde a quapy levanta erro |
+| `score_edges` | `"fixed"`, nao exposto | quapy varre os escores | corrige o `MS` em 8x |
+
+E uma armadilha de nomenclatura: **`bin_strategy` significa coisas diferentes
+nas duas bibliotecas** -- na mlquantify e como agregar a varredura
+(`median`/`mean`), na qlib e como calcular as bordas
+(`equal_width`/`equal_count`). Quem comparar sem ler conclui errado.
+
+**Conferidos e corretos:** a largura de banda do `KDEy` (0,1 nas duas), as
+bordas do histograma (`bin_edges="fixed"` com `range=(0,1)` na mlquantify e
+`equal_width` com `att_range=[0,1]` na qlib sao a mesma coisa), e os
+intervalos de `DyS` e `HDx`, ja alinhados pelo registro.
+
+**Implementacao, anotada e nao consertada**, por decisao de quem conduz o
+experimento:
+
+* a **qlib troca de metodo entre binario e multiclasse** no `AC` e no `PAC`.
+  No binario e a forma fechada de Forman; na multiclasse ela **inverte a
+  matriz de confusao transposta** (`linalg.inv(self.cm_.T)`), corta os
+  negativos e renormaliza, caindo em minimizacao de distancia so no `except
+  LinAlgError`. Medido: batem a 1e-6 em **93,8%** dos casos binarios e em
+  **0,8%** dos multiclasse. E ate no binario ha uma troca escondida -- com
+  `|cm_[1,1] - cm_[0,1]| <= 0,001` ela devolve a contagem sem ajuste, isto e,
+  vira `CC`; a mlquantify so faz isso quando `tpr - fpr` e exatamente zero;
+* o `HDy` e o `DyS` da **quapy degradam com o numero de classes** no
+  um-contra-resto: no binario concordam no piso de ruido (0,0085 e 0,0060) e
+  na multiclasse divergem 5,0x e 9,5x. Nao e a decomposicao nem a
+  normalizacao -- as duas bibliotecas ajustam um quantificador binario por
+  classe, e normalizar as estimativas cruas do mesmo jeito nao muda o vao --,
+  e sim a estimativa binaria por classe: com 10 classes as cruas da quapy
+  somam 0,53 contra 0,94 da mlquantify;
+* o `solve_hd` da qlib nao confere o status do cvxpy antes de indexar.
+
+
 ---
 
 ## 12. Organizacao do codigo

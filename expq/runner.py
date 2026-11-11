@@ -275,15 +275,33 @@ def _motivo(invalidas) -> str:
 
 
 def _measure_memory(build, X_train, y_train, X_test, samples):
-    """Pico de memoria no treinamento e na estimacao, via ``tracemalloc``."""
+    """Pico de memoria no treinamento e na estimacao, via ``tracemalloc``.
+
+    As estimativas aqui sao protegidas uma a uma, com a mesma tolerancia do
+    ``_predict_all``. Sem isso, uma unica amostra que levantasse excecao
+    matava a combinacao inteira -- inclusive quando o caminho do erro a
+    tolerava, porque ele admite ate ``MAX_INVALID_FRACTION`` de amostras
+    invalidas e este nao admitia nenhuma. A combinacao sumia com a mensagem
+    crua da biblioteca, sem indicar que vinha da medicao de memoria.
+
+    Passado o limite, devolve-se ``nan`` nas duas medidas em vez de derrubar
+    a combinacao: o custo fica faltando, o erro continua valendo.
+    """
     tracemalloc.start()
     try:
         quantifier = build()
         quantifier.fit(X_train, y_train)
         fit_peak = tracemalloc.get_traced_memory()[1]
         tracemalloc.reset_peak()
+        limite = MAX_INVALID_FRACTION * len(samples)
+        invalidas = 0
         for i in range(len(samples)):
-            quantifier.predict(X_test[samples.get(i)])
+            try:
+                quantifier.predict(X_test[samples.get(i)])
+            except Exception:
+                invalidas += 1
+                if invalidas > limite:
+                    return float("nan"), float("nan")
         predict_peak = tracemalloc.get_traced_memory()[1]
     finally:
         tracemalloc.stop()

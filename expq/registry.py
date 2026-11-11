@@ -22,6 +22,7 @@ de leitura, divisao, treinamento, geracao de amostras e estimacao.
 
 from __future__ import annotations
 
+import contextlib
 from dataclasses import dataclass
 from typing import Callable
 
@@ -239,11 +240,34 @@ _mlq("MS2", "selecao de limiar", "counting", "MS2", binary_only=True)
 _mlq("MLPE", "verossimilhanca", "likelihood", "MLPE", needs_classifier=False,
      notes="linha de base trivial de Hassan, Maletzke e Batista (2021); "
            "nao agregativo, nao recebe classificador")
-_mlq("EMQ", "verossimilhanca", "likelihood", "EMQ")
+# MANUAL: max_iter=1000 para casar com a quapy (MAX_ITER=1000) e com a
+# quantificationlib (max_iter=1000); a tolerancia ja e 1e-4 nas tres. O
+# padrao da biblioteca, 100, e o menor dos quatro e esta mordendo: no
+# conjunto banana a estimativa muda 0,144 entre 100 e 1000 iteracoes, ou
+# seja, o EM estava sendo truncado antes de convergir.
+_mlq("EMQ", "verossimilhanca", "likelihood", "EMQ", kwargs={"max_iter": 1000},
+     notes="max_iter alinhado em 1000 com a quapy e a quantificationlib; o "
+           "padrao da biblioteca e 100 e trunca o EM antes da convergencia")
 _mlq("CDE", "verossimilhanca", "likelihood", "CDE")
 _mlq("HDy", "casamento de distribuicoes", "matching", "HDy", binary_only=True,
      notes="varre [10, 20, ..., 110] e toma a mediana das estimativas, que e "
            "a definicao do metodo e o mesmo que a quapy faz; nao mexido")
+# O mesmo HDy com os 8 intervalos fixos da quantificationlib, para o par com
+# ela ficar alinhado. Fica a parte do ``HDy`` varrido, que continua sendo o
+# par da quapy: a quapy fixa a varredura [10..110] no codigo, sem parametro,
+# entao nao da para alinhar os tres num valor so. Dois pares, cada um
+# internamente alinhado, e melhor do que um par torto e outro certo.
+#
+# O caminho inverso -- fazer a qlib varrer -- foi medido na sens-hdy e nao
+# serve: o ``solve_hd`` dela indexa ``problem.solution.primal_vars`` sem
+# conferir o status do cvxpy, e com muitos intervalos sobre amostra pequena
+# o problema fica degenerado e o acesso estoura. Deu 4 erros e 7 timeouts
+# contra 1 timeout do HDy de 8 intervalos, e as perdas caem justamente nos
+# conjuntos de muitas classes.
+_mlq("HDy8", "casamento de distribuicoes", "matching", "HDy", binary_only=True,
+     kwargs={"bins_size": DEFAULT_BINS},
+     notes="o HDy com os 8 intervalos fixos da quantificationlib, para o par "
+           "com ela medir implementacao e nao parametrizacao")
 _mlq("GHDy", "casamento de distribuicoes", "matching", "GHDy")
 _mlq("DyS", "casamento de distribuicoes", "matching", "DyS", binary_only=True,
      kwargs={"bins_size": DEFAULT_BINS},
@@ -264,6 +288,69 @@ _mlq("HDx", "nao agregativo", "matching", "HDx", needs_classifier=False,
 _mlq("GHDx", "nao agregativo", "matching", "GHDx", needs_classifier=False)
 _mlq("EDx", "nao agregativo", "matching", "EDx", needs_classifier=False)
 _mlq("PWK", "vizinhos e arvores", "neighbors", "PWK", needs_classifier=False)
+
+
+class _PWKSklearn:
+    """Invólucro do ``PWKCLF`` com a interface que o scikit-learn exige.
+
+    MANUAL: o ``PWKCLF`` da mlquantify nao implementa ``get_params``, entao o
+    ``clone`` do scikit-learn o recusa -- e com isso ele nao pode ser passado
+    a nenhum quantificador da propria biblioteca que valide cruzado, que e o
+    caso do ACC. O invólucro so repassa ``fit`` e ``predict`` e declara os
+    parametros; nao muda o metodo.
+    """
+
+    def __init__(self, alpha=1, n_neighbors=10):
+        self.alpha = alpha
+        self.n_neighbors = n_neighbors
+
+    def get_params(self, deep=True):
+        return {"alpha": self.alpha, "n_neighbors": self.n_neighbors}
+
+    def set_params(self, **params):
+        for nome, valor in params.items():
+            setattr(self, nome, valor)
+        return self
+
+    def fit(self, X, y):
+        import numpy as np
+        from mlquantify.neighbors._classification import PWKCLF
+
+        self._clf = PWKCLF(alpha=self.alpha, n_neighbors=self.n_neighbors)
+        self._clf.fit(X, y)
+        self.classes_ = np.unique(y)
+        return self
+
+    def predict(self, X):
+        return self._clf.predict(X)
+
+
+def _build_pwk_ajustado(ctx: Ctx):
+    """O PWK com ajuste de contagem, que e o par do PWKQuantifier da qlib.
+
+    O ``PWK`` da mlquantify e ``class PWK(CC)`` e nao aceita estimador
+    externo -- o kNN ponderado e intrinseco ao metodo. Para obter o
+    equivalente ajustado monta-se o ``TAC`` sobre o ``PWKCLF``, que e o mesmo
+    classificador que o ``PWK`` usa por dentro. Os padroes batem com os da
+    qlib: ``n_neighbors=10`` nos dois, e ``alpha=1``, que e o valor do estudo
+    original.
+    """
+    from mlquantify.counting import ACC
+
+    # ACC e nao TAC: o PWKCLF so tem ``predict``, e o TAC e de predicao suave.
+    # O ACC e ``CrispPredictionMixin``, que e o que a qlib faz -- a matriz de
+    # confusao dela sai de ``knn_estimator_.predict(X)``, predicao dura. (ACC
+    # e TAC sao o mesmo estimador: medidos, batem bit a bit nos 564 casos.)
+    base = _PWKSklearn(alpha=1, n_neighbors=10)
+    return ACC(estimator=base, **_protocolo(ACC, ctx))
+
+
+register(MethodSpec(
+    canonical="PWKAC", family="vizinhos e arvores", library="mlquantify",
+    class_name="mlquantify.counting.TAC(mlquantify.neighbors.PWKCLF)",
+    build_adapted=_build_pwk_ajustado, binary_only=True, manual_configs=1,
+    notes="o PWK ajustado: TAC sobre o PWKCLF, que e o par do PWKQuantifier "
+          "da quantificationlib. O PWK sem ajuste continua registrado a parte"))
 
 
 def _mlq_ensemble(ctx: Ctx):
@@ -574,10 +661,30 @@ _qlib("CC", "contagem", "baselines.cc", "CC", needs_train=False)
 _qlib("PCC", "contagem", "baselines.cc", "PCC", needs_train=False)
 # Mesmo caso da quapy: a classe resolve a multiclasse por minimizacao de
 # distancia, que e a formulacao generalizada, entao o par e o GACC e nao o ACC.
-_qlib("GACC", "contagem ajustada", "baselines.ac", "AC",
-      notes="na multiclasse a biblioteca resolve por minimizacao de distancia, "
-            "que e a formulacao generalizada (GACC); por isso o nome canonico "
-            "leva o G e o par e o GACC da mlquantify")
+# Par do TAC, nao do GACC, por decisao de quem escreve o estudo. No binario
+# -- 76,1% dos conjuntos -- esta classe resolve a forma fechada de Forman,
+# ``p = (p0 - fpr) / (tpr - fpr)``, com tpr e fpr do classificador validado
+# cruzado no limiar padrao: e exatamente o que o TAC da mlquantify faz. O
+# GACC resolve regressao restrita no simplex sempre, que e outro
+# solucionador para a mesma grandeza.
+#
+# RESSALVA, que o texto precisa fazer: na multiclasse esta classe troca de
+# metodo. Ela inverte a matriz de confusao transposta --
+# ``linalg.inv(self.cm_.T).dot(prevalences_0)``, corta os negativos e
+# renormaliza --, e so cai em minimizacao de distancia no ``except
+# LinAlgError``, quando a inversao falha. O TAC, binario, e decomposto
+# um-contra-resto pelo harness. Medido: no binario os dois batem a 1e-6 em
+# 93,8% dos casos; na multiclasse, em 0,8%.
+#
+# E ate no binario ha uma troca escondida: se |cm_[1,1] - cm_[0,1]| <= 0.001
+# a classe devolve a contagem sem ajuste, isto e, vira CC. A mlquantify so
+# faz isso quando tpr - fpr e exatamente zero.
+# O par fica certo no binario e aproximado na multiclasse -- o inverso do
+# que valia com o GACC.
+_qlib("TAC", "selecao de limiar", "baselines.ac", "AC",
+      notes="no binario e a forma fechada de Forman no limiar padrao, que e o "
+            "TAC; na multiclasse a biblioteca troca para minimizacao de "
+            "distancia, que e a formulacao generalizada")
 _qlib("PACC", "contagem ajustada", "baselines.ac", "PAC")
 _qlib("FM", "contagem ajustada", "multiclass.friedman", "FriedmanME")
 _qlib("EMQ", "verossimilhanca", "multiclass.em", "EM", train_cv=False,
@@ -594,10 +701,87 @@ _qlib("EMQ", "verossimilhanca", "multiclass.em", "EM", train_cv=False,
 # 15,2% dos 560 casos e p = 1,4e-29 -- discordancia enviesada numa direcao. O
 # texto deve dizer que parte dela vem da variante de intervalo fixo, e nao
 # so da implementacao.
-_qlib("HDy", "casamento de distribuicoes", "multiclass.df", "HDy",
-      notes="recebe n_bins escalar (8, largura igual) em vez da varredura de "
-            "intervalos com mediana das estimativas que a definicao do metodo "
-            "pede, que e o que a mlquantify e a quapy fazem")
+_qlib("HDy8", "casamento de distribuicoes", "multiclass.df", "HDy",
+      notes="n_bins escalar (8, largura igual), que e o padrao da classe. O "
+            "par e o HDy8 da mlquantify, o mesmo metodo com o mesmo numero "
+            "de intervalos, para a comparacao medir implementacao e nao "
+            "parametrizacao")
+# Sensibilidade: a familia de limiar varrendo os escores observados ----------
+#
+# A ``evaluate_thresholds`` da mlquantify tem dois modos. O padrao,
+# ``score_edges="fixed"``, varre ``np.linspace(0, 1, 101)`` -- grade fixa de
+# 101 limiares equiespacados. O outro varre ``np.unique(probabilities)``, os
+# escores observados, que e o que a quapy faz (``np.unique(decision_scores)``
+# em ``_threshold_optim.py``) e o que Forman define. O modo nao esta exposto
+# no quantificador: o ``_adjust`` chama a funcao sem o argumento, entao o
+# usuario nao tem como pedir a varredura exata.
+#
+# Medido com a grade, contra a quapy: MS 0,0384, MS2 0,0203, T50 0,0172,
+# MAX 0,0085, X 0,0080 -- ordenados por quanto o criterio depende do conjunto
+# de candidatos, que e a assinatura da causa. Estas variantes medem quanto
+# disso a varredura exata devolve.
+@contextlib.contextmanager
+def _limiar_exato():
+    """Troca a ``evaluate_thresholds`` do modulo pelo modo exato.
+
+    E um swap no modulo, nao na instancia, porque o ``_adjust`` chama a funcao
+    pelo nome global. Vale so dentro do ``with``, e so faz sentido numa
+    execucao que rode apenas os metodos de limiar.
+    """
+    from mlquantify.counting import _adjustment as _adj
+    from mlquantify.counting._utils import evaluate_thresholds as _ev
+
+    original = _adj.evaluate_thresholds
+    _adj.evaluate_thresholds = (
+        lambda y, probs, score_edges="unique": _ev(y, probs, score_edges))
+    try:
+        yield
+    finally:
+        _adj.evaluate_thresholds = original
+
+
+def _com_limiar_exato(cls):
+    """Subclasse que varre os escores observados em vez da grade de 101.
+
+    Nao duplica o corpo do ``_adjust`` -- nem o da base nem o do MS, que tem
+    o proprio --, so o executa com a funcao trocada.
+    """
+
+    class _Exato(cls):
+        def _adjust(self, *args, **kwargs):
+            with _limiar_exato():
+                return super()._adjust(*args, **kwargs)
+
+    _Exato.__name__ = cls.__name__ + "Exato"
+    _Exato.__qualname__ = _Exato.__name__
+    return _Exato
+
+
+def _mlq_limiar_exato(canonical, cls_name):
+    def build_adapted(ctx: Ctx):
+        import importlib
+
+        base = getattr(importlib.import_module("mlquantify.counting"), cls_name)
+        cls = _com_limiar_exato(base)
+        return cls(ctx.make_clf(), **_protocolo(base, ctx))
+
+    return register(MethodSpec(
+        canonical=canonical, family="selecao de limiar", library="mlquantify",
+        class_name=f"mlquantify.counting.{cls_name} (varredura exata)",
+        build_adapted=build_adapted, group="sens", binary_only=True,
+        manual_configs=1,
+        notes="o mesmo metodo com score_edges=\"unique\": varre os escores "
+              "observados, como a quapy e como Forman define, em vez da grade "
+              "fixa de 101 limiares que e o padrao da biblioteca"))
+
+
+_mlq_limiar_exato("T50exato", "T50")
+_mlq_limiar_exato("Xexato", "TX")
+_mlq_limiar_exato("MAXexato", "TMAX")
+_mlq_limiar_exato("MSexato", "MS")
+_mlq_limiar_exato("MS2exato", "MS2")
+
+
 # Sensibilidade, fora das execucoes oficiais (grupo ``sens``, que o
 # ``DEFAULT_GROUPS`` nao inclui): o mesmo ``HDy`` da quantificationlib, mas
 # com a varredura de intervalos em vez do ``n_bins=8`` fixo. Serve para
@@ -643,8 +827,16 @@ _qlib("HDx", "nao agregativo", "multiclass.df", "HDX", needs_train=False,
       needs_classifier=False)
 _qlib("EDx", "nao agregativo", "multiclass.energy", "EDX", needs_train=False,
       needs_classifier=False)
-_qlib("PWK", "vizinhos e arvores", "multiclass.knn", "PWKQuantifier",
-      needs_train=False, needs_classifier=False)
+# Nome proprio: esta classe e um metodo AC sobre o classificador PWK -- o
+# ``fit`` dela roda o kNN no treino inteiro para montar a matriz de confusao
+# e ajusta a contagem. O ``PWK`` da mlquantify e ``class PWK(CC)``, contagem
+# pura. Medido: o erro da mlquantify fica plano com o tamanho da amostra
+# (0,1218 a 0,1068), o da qlib cai pela metade (0,1437 a 0,0744) -- enviesado
+# contra consistente. O par dela e o ``PWKAC`` da mlquantify, abaixo.
+_qlib("PWKAC", "vizinhos e arvores", "multiclass.knn", "PWKQuantifier",
+      needs_train=False, needs_classifier=False,
+      notes="AC sobre o classificador PWK: monta a matriz de confusao no fit "
+            "e ajusta a contagem; nao e contagem pura como o PWK da mlquantify")
 
 
 def _qlib_ensemble(ctx: Ctx):
@@ -701,7 +893,8 @@ def _qf_cv(ctx: Ctx):
 
 
 def _qunfold(canonical, family, cls_name, *, needs_cv=True, needs_classifier=True,
-             needs_bins=False, aliases=(), notes="", group="core"):
+             needs_bins=False, aliases=(), notes="", group="core", kwargs=None):
+    kwargs = kwargs or {}
     def _cls():
         import qunfold
 
@@ -725,7 +918,7 @@ def _qunfold(canonical, family, cls_name, *, needs_cv=True, needs_classifier=Tru
         # Todo metodo da qunfold sorteia o ponto de partida do otimizador em
         # ``minimize``; sem ``seed`` cada uma das 400 amostras parte de um
         # ponto diferente e a execucao nao se repete.
-        return cls(*args, **_protocolo(cls, ctx))
+        return cls(*args, **{**kwargs, **_protocolo(cls, ctx)})
 
     manual = (1 if (needs_cv and needs_classifier) else 0) + (1 if needs_bins else 0)
     return register(MethodSpec(
@@ -752,6 +945,10 @@ _qunfold("GPACC", "contagem ajustada", "PACC",
 # Pareado com o ``LikelihoodMaximizer``, o EMQ media EM contra otimizacao
 # numerica, que e a mesma confusao que o ACC/GACC e o HDy produziam.
 _qunfold("EMQ", "verossimilhanca", "ExpectationMaximizer", needs_cv=False,
+         # MANUAL: 1e-6/100 sao os padroes da qunfold; 1e-4/1000 sao os das
+         # outras tres, e e neles que o criterio de parada deixa de ser fonte
+         # de diferenca.
+         kwargs={"tol": 1e-4, "max_iter": 1000},
          notes="EM de Saerens et al. (2002), o mesmo algoritmo do EMQ das "
                "outras tres: laco iterativo com max_iter=100 e tol=1e-6, sem "
                "otimizador generico e sem ponto de partida aleatorio")
