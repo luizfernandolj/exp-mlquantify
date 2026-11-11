@@ -347,8 +347,14 @@ def _quapy(canonical, family, module, cls_name, *, binary_only=False,
 
 _quapy("CC", "contagem", "aggregative", "CC")
 _quapy("PCC", "contagem", "aggregative", "PCC")
-_quapy("ACC", "contagem ajustada", "aggregative", "ACC", aliases=("GACC",),
-       notes="multiclasse nativa; equivale a GACC em problemas multiclasse")
+# Nome canonico GACC, sem apelido para ACC. A classe e multiclasse nativa, ou
+# seja, a formulacao generalizada -- e por isso o par dela e o GACC da
+# mlquantify, nao o ACC, que e binario com decomposicao um-contra-todos. Com o
+# apelido, o mesmo metodo era comparado com os dois, e uma das duas comparacoes
+# era entre formulacoes diferentes.
+_quapy("GACC", "contagem ajustada", "aggregative", "ACC",
+       notes="multiclasse nativa, ou seja, a formulacao generalizada; por isso "
+             "o nome canonico leva o G e o par e o GACC da mlquantify")
 _quapy("PACC", "contagem ajustada", "aggregative", "PACC")
 _quapy("T50", "selecao de limiar", "aggregative", "T50", binary_only=True)
 _quapy("X", "selecao de limiar", "aggregative", "X", binary_only=True)
@@ -517,31 +523,32 @@ def _qlib(canonical, family, module, cls_name, *, needs_train=True,
 
 _qlib("CC", "contagem", "baselines.cc", "CC", needs_train=False)
 _qlib("PCC", "contagem", "baselines.cc", "PCC", needs_train=False)
-_qlib("ACC", "contagem ajustada", "baselines.ac", "AC", aliases=("GACC",),
-      notes="na multiclasse a biblioteca resolve por minimizacao de distancia (GACC)")
+# Mesmo caso da quapy: a classe resolve a multiclasse por minimizacao de
+# distancia, que e a formulacao generalizada, entao o par e o GACC e nao o ACC.
+_qlib("GACC", "contagem ajustada", "baselines.ac", "AC",
+      notes="na multiclasse a biblioteca resolve por minimizacao de distancia, "
+            "que e a formulacao generalizada (GACC); por isso o nome canonico "
+            "leva o G e o par e o GACC da mlquantify")
 _qlib("PACC", "contagem ajustada", "baselines.ac", "PAC")
 _qlib("FM", "contagem ajustada", "multiclass.friedman", "FriedmanME")
 _qlib("EMQ", "verossimilhanca", "multiclass.em", "EM", train_cv=False,
       notes="escores do classificador treinado na particao inteira, como "
             "nas outras tres; a classe exige o estimador de treino assim "
             "mesmo")
-# Nome canonico proprio, e por isso NAO pareado com o ``HDy``: a classe usa
-# um unico numero de intervalos (``n_bins=8``, ``bin_strategy=equal_width``,
-# os padroes dela), enquanto a definicao do metodo varre intervalos e toma a
-# mediana das estimativas, que e o que a mlquantify e a quapy fazem. Sao dois
-# estimadores, nao duas implementacoes de um -- a mesma regra que ja vale
-# para as formulacoes generalizadas da qunfold, logo abaixo.
+# Pareado com o ``HDy`` da mlquantify, por decisao de quem escreve o estudo.
 #
-# Medido enquanto ainda estava pareado como ``HDy``: 0,0434 de diferenca
-# absoluta media contra a mlquantify, com a mlquantify melhor em so 15,2% dos
-# 560 casos e p = 1,4e-29. Discordancia enviesada numa direcao, que e a
-# assinatura de estimador diferente, nao de implementacao divergente.
-_qlib("HDyFix", "casamento de distribuicoes", "multiclass.df", "HDy",
-      notes="variante de intervalo fixo do HDy: n_bins escalar (8, largura "
-            "igual) em vez da varredura de intervalos com mediana das "
-            "estimativas que a definicao do metodo pede. Nao e comparavel "
-            "com o HDy da mlquantify e da quapy, e por isso tem nome "
-            "canonico proprio e nenhum alias para HDy")
+# A ressalva fica registrada, porque ela e real: esta classe recebe um unico
+# numero de intervalos (``n_bins=8``, ``bin_strategy=equal_width``, os padroes
+# dela), enquanto a definicao do metodo varre intervalos e toma a mediana das
+# estimativas, que e o que a mlquantify e a quapy fazem. Medido: 0,0434 de
+# diferenca absoluta media contra a mlquantify, com a mlquantify melhor em so
+# 15,2% dos 560 casos e p = 1,4e-29 -- discordancia enviesada numa direcao. O
+# texto deve dizer que parte dela vem da variante de intervalo fixo, e nao
+# so da implementacao.
+_qlib("HDy", "casamento de distribuicoes", "multiclass.df", "HDy",
+      notes="recebe n_bins escalar (8, largura igual) em vez da varredura de "
+            "intervalos com mediana das estimativas que a definicao do metodo "
+            "pede, que e o que a mlquantify e a quapy fazem")
 _qlib("SORD", "casamento de distribuicoes", "binary.emd", "SORDy", binary_only=True)
 _qlib("EDy", "casamento de distribuicoes", "multiclass.energy", "EDy",
       kwargs={"distance": _euclidean},

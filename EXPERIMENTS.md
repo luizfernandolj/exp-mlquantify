@@ -1687,6 +1687,13 @@ contem a substituicao das 202 combinacoes, com o nome trocado em 565
 linhas de `HDy` da qlib, 520 de `MMD` da qunfold e 281 entradas de ledger.
 A `final-corrigido` e a `final-alinhado` nao foram alteradas.
 
+> **A separacao do `HDy` foi desfeita depois**, na `final-ajustado`, por
+> decisao de quem conduz o experimento: o `HDy` da quantificationlib volta a
+> ser par do `HDy` da mlquantify. A separacao do `MMD`/`KMM` da qunfold
+> continua valendo. O que esta escrito aqui sobre o intervalo fixo segue
+> valendo como descricao do metodo -- o que mudou foi a decisao de compara-lo
+> mesmo assim, e o custo disso em Q1 esta medido adiante.
+
 #### A PR #6: o custo do `MLPE` medido
 
 Medida na execucao `sens_pr6`: `MLPE` nos 142 conjuntos mais 12 de
@@ -1901,9 +1908,101 @@ comparacoes diferentes contra o mesmo metodo da outra biblioteca, e nao duas
 copias da mesma. Conferido: contra a mesma medicao da quantificationlib
 (0,125630), a mlquantify da 0,130248 pelo `ACC` e 0,116548 pelo `GACC`.
 
+> **Esse apelido foi retirado depois**, na `final-ajustado`: o `AC` da
+> quantificationlib e o `ACC` da quapy sao a formulacao generalizada e passam
+> a ser comparados so com o `GACC`. Nao era duplicacao, como esta dito aqui;
+> eram duas comparacoes, e uma delas comparava formulacoes diferentes.
+
 Nenhuma medicao mudou nesta execucao -- so parou de ser contada duas vezes.
 A `final-pares` esta em `results/final-pares/`, e as anteriores nao foram
 alteradas.
+
+#### A execucao `final-ajustado`: tres pares revistos
+
+Tres mudancas de pareamento, pedidas por quem conduz o experimento, todas
+sobre quem e comparado com quem -- nenhuma medicao foi refeita.
+
+| biblioteca | metodo | era par de | passa a ser par de |
+| --- | --- | --- | --- |
+| quantificationlib | `baselines.ac.AC` | `ACC` **e** `GACC` | so `GACC` |
+| quapy | `aggregative.ACC` | `ACC` **e** `GACC` | so `GACC` |
+| quantificationlib | `multiclass.df.HDy` | nada (`HDyFix`) | `HDy` |
+
+**As duas primeiras.** O `AC` da quantificationlib e o `ACC` da quapy
+corrigem a contagem com a matriz de confusao estimada sobre o treino, para
+qualquer numero de classes: e a formulacao generalizada, que na mlquantify se
+chama `GACC`. O `ACC` da mlquantify e a versao binaria. Comparar a mesma
+medicao das outras com os dois de uma vez media um estimador contra dois
+estimadores diferentes.
+
+**A terceira anda contra a proposta**, e por isso vale dizer de onde veio: e
+o inverso da separacao registrada na `final-separado`. A nota do registro
+sobre o intervalo fixo continua no `registry.py`; o que mudou foi a decisao
+de comparar os dois mesmo assim.
+
+**O pareamento vem dos nomes gravados nas parciais, nao dos canonicos do
+registry.** O `registry.py` so decide os apelidos; quem casa um metodo da
+outra biblioteca com um da mlquantify e a igualdade de nome no `summary.csv`.
+Trocar o canonico no registro, sozinho, nao reaponta nada -- fez o oposto do
+pedido na primeira tentativa, tirando o `GACC` em vez de renomear o `ACC` e
+deixando o `HDyFix` orfao. A mudanca foi feita renomeando a medida: 562
+linhas de `ACC` da qlib, 565 de `HDyFix` da qlib, 565 de `ACC` da quapy e 426
+entradas de ledger. O ledger ficou identico no resto (9 709 `ok`, 76 `erro`,
+119 `timeout`) e a cobertura tambem (9 904 de 9 940).
+
+**Q1, pelas tabelas das duas execucoes:**
+
+| | `final-pares` | `final-ajustado` |
+| --- | --- | --- |
+| qlib: casos (metodos) | 6 564 (12) | 6 564 (12) |
+| qlib: dif. abs. media | 0,0063 | **0,0094** |
+| qlib: iguais ate 1e-3 | 81,6% | **75,3%** |
+| qlib: iguais ate 1e-2 | 89,5% | **84,7%** |
+| qlib: correlacao | 0,9776 | **0,9599** |
+| qlib: dif. maxima | 0,3155 | **0,4537** |
+| quapy: casos (metodos) | 11 584 (21) | **11 024 (20)** |
+| quapy: dif. abs. media | 0,0094 | **0,0089** |
+| quapy: iguais ate 1e-3 | 55,1% | **55,7%** |
+| quapy: correlacao | 0,9657 | **0,9685** |
+| qunfold | 3 844 (7) | 3 844 (7), intacta |
+| testes com diferenca | 12 de 27 | 12 de 26 |
+
+A contagem da quantificationlib nao muda porque as duas trocas se cancelam:
+sai o par `ACC` (560 casos) e entra o par `HDy` (560). **O que muda e a
+qualidade**, e muda muito, porque os dois pares sao os extremos opostos da
+tabela:
+
+| par que sai ou entra | casos | dif. abs. media | iguais ate 1e-3 | mlquantify melhor |
+| --- | --- | --- | --- | --- |
+| `ACC` vs qlib (sai) | 560 | 0,0076 | 78,0% | -- |
+| `ACC` vs quapy (sai) | 560 | **0,0190** | 42,5% | -- |
+| `HDy` vs qlib (entra) | 560 | **0,0434** | **4,6%** | **15,2%** |
+| `GACC` vs qlib (fica) | 560 | 0,0100 | 82,5% | 50,2% |
+| `GACC` vs quapy (fica) | 564 | 0,0056 | 51,8% | 46,1% |
+
+O `HDy` vs qlib e o pior par do experimento inteiro, e o lado melhor e o da
+quantificationlib: 0,0907 contra 0,1178 de MAE. Concorda em 4,6% dos casos
+ate 1e-3 e em 31,1% ate 1e-2, e a mlquantify so ganha em 15,2% deles --
+assimetria que, pela leitura da `final-separado`, e o que distingue
+estimador diferente de ruido de semente. **Ele sozinho responde por quase
+toda a piora da quantificationlib nesta execucao.**
+
+Contra a quapy o efeito e o oposto: o par que sai era o de pior concordancia
+da biblioteca (0,0190 de diferenca media, 42,5% ate 1e-3), e tirar um
+estimador binario comparado com um generalizado melhora os numeros da
+proposta. **As tres mudancas juntas, entao, andam para os dois lados** --
+contra a proposta na quantificationlib, a favor na quapy --, o que e o que
+mostra que nao foram escolhidas pelo efeito.
+
+**Uma perda a registrar: o `ACC` da mlquantify deixa de ser comparado com
+qualquer coisa.** Era o unico metodo da proposta cujos dois pares eram o
+`ACC` da qlib e o da quapy; sem eles, nenhuma das tres bibliotecas tem
+metodo com esse nome, e ele sai de Q1 por completo. Os testes caem de 27
+para 26 blocos por isso. A versao generalizada, `GACC`, segue comparada com
+as tres.
+
+A `final-ajustado` esta em `results/final-ajustado/`, e as anteriores nao
+foram alteradas.
 
 ---
 
