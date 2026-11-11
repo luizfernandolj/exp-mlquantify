@@ -204,6 +204,27 @@ _mlq("PCC", "contagem", "counting", "PCC")
 _mlq("ACC", "contagem ajustada", "counting", "ACC", binary_only=True,
      notes="decomposicao um-contra-todos aplicada internamente")
 _mlq("GACC", "contagem ajustada", "counting", "GACC")
+# O apelido PACC <-> GPACC e declarado SO deste lado, e isso e deliberado.
+#
+# O expand_aliases acrescenta um apelido apenas quando a biblioteca nao tem
+# metodo proprio com aquele nome. Declarando dos dois lados -- como estava --,
+# a mlquantify ganhava PACC e as outras ganhavam GPACC, e o mesmo par se
+# materializava sob os dois nomes: 564 casos contados duas vezes por
+# biblioteca, 1128 no total, inflando o total de Q1 em 7,9% contra a
+# quantificationlib e 4,6% contra a quapy. Conferido por hash das medicoes.
+#
+# Entre os dois lados, este. Tirando o apelido daqui e deixando o das outras,
+# a duplicacao tambem acabava, mas o bloco de teste do PACC passava a comparar
+# quantificationlib contra quapy, sem a mlquantify -- uma comparacao que nao e
+# a pergunta de Q1 e que ainda assim entrava na contagem de metodos com
+# diferenca. Declarado deste lado, os 27 blocos seguem todos ancorados na
+# proposta: o PACC compara mlquantify, quantificationlib e quapy, e o GPACC
+# compara mlquantify e qunfold.
+#
+# O ACC -> GACC das outras duas continua, e nao duplica: a mlquantify tem ACC
+# e GACC como metodos distintos, entao os apelidos produzem duas comparacoes
+# diferentes contra o mesmo metodo da outra biblioteca, e nao duas copias da
+# mesma.
 _mlq("GPACC", "contagem ajustada", "counting", "GPACC", aliases=("PACC",))
 _mlq("FM", "contagem ajustada", "counting", "FM")
 _mlq("TAC", "selecao de limiar", "counting", "TAC", binary_only=True)
@@ -328,7 +349,7 @@ _quapy("CC", "contagem", "aggregative", "CC")
 _quapy("PCC", "contagem", "aggregative", "PCC")
 _quapy("ACC", "contagem ajustada", "aggregative", "ACC", aliases=("GACC",),
        notes="multiclasse nativa; equivale a GACC em problemas multiclasse")
-_quapy("PACC", "contagem ajustada", "aggregative", "PACC", aliases=("GPACC",))
+_quapy("PACC", "contagem ajustada", "aggregative", "PACC")
 _quapy("T50", "selecao de limiar", "aggregative", "T50", binary_only=True)
 _quapy("X", "selecao de limiar", "aggregative", "X", binary_only=True)
 _quapy("MAX", "selecao de limiar", "aggregative", "MAX", binary_only=True)
@@ -498,7 +519,7 @@ _qlib("CC", "contagem", "baselines.cc", "CC", needs_train=False)
 _qlib("PCC", "contagem", "baselines.cc", "PCC", needs_train=False)
 _qlib("ACC", "contagem ajustada", "baselines.ac", "AC", aliases=("GACC",),
       notes="na multiclasse a biblioteca resolve por minimizacao de distancia (GACC)")
-_qlib("PACC", "contagem ajustada", "baselines.ac", "PAC", aliases=("GPACC",))
+_qlib("PACC", "contagem ajustada", "baselines.ac", "PAC")
 _qlib("FM", "contagem ajustada", "multiclass.friedman", "FriedmanME")
 _qlib("EMQ", "verossimilhanca", "multiclass.em", "EM", train_cv=False,
       notes="escores do classificador treinado na particao inteira, como "
