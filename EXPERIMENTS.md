@@ -1855,6 +1855,56 @@ duas execucoes, contra os mesmos `0,25928454` da quapy, com diferenca de
 A `final-mlpe-na` esta em `results/final-mlpe-na/`. As execucoes anteriores
 nao foram alteradas.
 
+#### A execucao `final-pares`: o apelido que contava duplo
+
+Montar a aba "O que e comparado" do painel exigiu dizer, por extenso, qual
+metodo de cada biblioteca entra em Q1 contra qual metodo da mlquantify. Foi
+assim que apareceu uma duplicacao.
+
+O `expand_aliases` acrescenta um apelido **apenas quando a biblioteca nao tem
+metodo proprio com aquele nome**. O apelido `PACC`/`GPACC` estava declarado
+dos dois lados -- a mlquantify dizia `GPACC -> PACC`, a quapy e a
+quantificationlib diziam `PACC -> GPACC`. Resultado: a mlquantify ganhava
+`PACC`, as outras ganhavam `GPACC`, e o **mesmo par se materializava sob os
+dois nomes**. Conferido por hash das medicoes: as 564 medicoes aparecem
+identicas nas duas linhas, com MAE de 0,083856 contra 0,090430 em ambas.
+
+| | com a duplicacao | sem ela |
+| --- | --- | --- |
+| quantificationlib | 7 128 casos (13 metodos) | **6 564 (12)** |
+| quapy | 12 148 (22) | **11 584 (21)** |
+| qunfold | 3 844 (7) | 3 844 (7), intacta |
+
+Eram **1 128 casos repetidos**: 7,9% do total contra a quantificationlib e
+4,6% contra a quapy. A qunfold intacta e o controle da operacao.
+
+**E o conserto anda contra a proposta**, o que e o que mostra que ele nao foi
+escolhido pelo efeito: a diferenca absoluta media contra a quapy piora de
+0,0091 para **0,0094**, a concordancia cai de 55,4% para 55,1% ate 1e-3 e de
+82,8% para 82,4% ate 1e-2, e a correlacao de 0,9665 para 0,9657. O par
+duplicado concordava melhor que a media, e o peso em dobro favorecia a
+proposta.
+
+**Qual lado tirar nao era indiferente, e isso so apareceu medindo.** Tirando
+o apelido da quapy e da quantificationlib a duplicacao tambem acabava, mas o
+bloco de teste do `PACC` passava a comparar **quantificationlib contra
+quapy**, sem a mlquantify -- uma comparacao que nao e a pergunta de Q1 e que
+ainda assim entrava na contagem, levando os testes de 12 para 13 de 27
+(44,4% para 48,1%). Tirando o apelido do lado da mlquantify, os 27 blocos
+seguem todos ancorados na proposta, o `PACC` compara mlquantify,
+quantificationlib e quapy, o `GPACC` compara mlquantify e qunfold, e a
+contagem fica em **12 de 27**, como era. Foi esse o lado escolhido.
+
+**O `ACC -> GACC` das outras duas continua, e nao duplica.** A mlquantify tem
+`ACC` e `GACC` como metodos distintos, entao os apelidos produzem duas
+comparacoes diferentes contra o mesmo metodo da outra biblioteca, e nao duas
+copias da mesma. Conferido: contra a mesma medicao da quantificationlib
+(0,125630), a mlquantify da 0,130248 pelo `ACC` e 0,116548 pelo `GACC`.
+
+Nenhuma medicao mudou nesta execucao -- so parou de ser contada duas vezes.
+A `final-pares` esta em `results/final-pares/`, e as anteriores nao foram
+alteradas.
+
 ---
 
 ## 12. Organizacao do codigo
