@@ -2165,6 +2165,19 @@ do treino contra O(1) da grade: no `Dermatology`, com 500 mil linhas de
 treino, sao 500 mil limiares candidatos em vez de 101. Os 12 `timeout` caem
 todos nos maiores conjuntos, com o limite de 1 800 s por metodo.
 
+**A grade continua sendo o numero oficial**, por decisao de quem conduz o
+estudo, e o motivo e a premissa do experimento: ele mede as bibliotecas como
+o usuario as recebe. O `score_edges` nao esta exposto no quantificador, entao
+um usuario da mlquantify nao consegue pedir a varredura exata; adotar o
+numero dela seria reportar um valor que ninguem reproduz com a biblioteca
+publicada. Esta execucao serve para dizer, com medida, **quanto da
+discordancia e parametrizacao e nao implementacao**, que e um resultado mais
+forte do que um numero melhor.
+
+Para registro, o que a adocao daria: a concordancia da quapy ate 0,01 subiria
+de 83,2% para 88,3% e a diferenca media cairia de 0,0087 para 0,0064, com o
+`MS` indo de 0,0384 (38,0% dos casos) para 0,0049 (87,9%).
+
 > **Correcao.** Numa leitura anterior desta execucao eu afirmei que a forma
 > exata "simplesmente nao roda nessa escala". Estava errado, e o erro foi de
 > metodo: eu havia **interrompido** a execucao em 665 de 710 combinacoes,
@@ -2240,6 +2253,14 @@ quanto falta para a correspondencia ser exata.
 **Batem a 1e-6 apenas tres:** `CC`, `PCC` e `MLPE` -- e sao exatamente os
 tres que **nao consomem escores fora da amostra**. Os dois primeiros contam
 com o classificador treinado na particao inteira; o terceiro ignora o teste.
+
+> **Passaram a ser quatro.** Depois que o `max_iter` do `EMQ` da mlquantify
+> foi alinhado em 1000, o `EMQ` entrou nessa lista: 0,0000 de diferenca e
+> 100% dos casos ate 1e-3 contra a quapy e contra a quantificationlib. Ele
+> tambem nao usa validacao cruzada -- a classe nem aceita o parametro --, de
+> modo que a regra se mantem: batem exatamente os metodos que nao dependem
+> de escores fora da amostra, e o que impedia o `EMQ` era so o criterio de
+> parada.
 
 **O piso de todo o resto sao as dobras da validacao cruzada**, e ele nao e
 removivel por parametro: a quapy nao expoe o embaralhamento (`val_split`
