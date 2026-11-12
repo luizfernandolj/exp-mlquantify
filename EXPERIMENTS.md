@@ -2140,15 +2140,16 @@ A `evaluate_thresholds` da mlquantify tem dois modos. O padrao,
 `np.unique(probabilities)`, que e o que a quapy faz e o que Forman define. O
 modo **nao esta exposto no quantificador**: o `_adjust` chama a funcao sem o
 argumento. Esta execucao mede os cinco metodos de limiar com a varredura
-exata, em 135 dos 142 conjuntos.
+exata. Resultado: 684 `ok` e 12 `timeout` de 710 combinacoes,
+com os 142 conjuntos cobertos.
 
 | metodo | grade de 101 | varredura exata | fator |
 | --- | --- | --- | --- |
-| `MS` | 0,0383 (6,7% ate 1e-3) | **0,0046 (51,7%)** | **0,12x** |
-| `T50` | 0,0175 (19,8%) | **0,0098 (37,9%)** | 0,56x |
-| `MS2` | 0,0199 (13,8%) | 0,0166 (53,8%) | 0,84x |
-| `X` | 0,0081 (40,9%) | 0,0067 (53,0%) | 0,83x |
-| `MAX` | 0,0087 (33,4%) | 0,0091 (37,7%) | 1,05x |
+| `MS` | 0,0386 (6,6% ate 1e-3) | **0,0046 (51,8%)** | **0,12x** |
+| `T50` | 0,0173 (20,1%) | **0,0098 (37,6%)** | 0,56x |
+| `MS2` | 0,0203 (13,5%) | 0,0168 (53,7%) | 0,83x |
+| `X` | 0,0080 (40,9%) | 0,0066 (52,6%) | 0,82x |
+| `MAX` | 0,0086 (33,6%) | 0,0088 (38,1%) | 1,03x |
 
 O conserto fecha o vao **na proporcao em que cada criterio depende do
 conjunto de candidatos**, que e o que torna o argumento causal e nao
@@ -2161,9 +2162,16 @@ quantizacao que afeta todos um pouco e o `MS` muito.
 
 **E a grade nao e descuido, e escala.** A varredura exata e O(*n*) no tamanho
 do treino contra O(1) da grade: no `Dermatology`, com 500 mil linhas de
-treino, sao 500 mil limiares candidatos em vez de 101. A execucao nao
-terminou em 7 dos 142 conjuntos, todos os maiores -- a forma fiel
-simplesmente nao roda nessa escala.
+treino, sao 500 mil limiares candidatos em vez de 101. Os 12 `timeout` caem
+todos nos maiores conjuntos, com o limite de 1 800 s por metodo.
+
+> **Correcao.** Numa leitura anterior desta execucao eu afirmei que a forma
+> exata "simplesmente nao roda nessa escala". Estava errado, e o erro foi de
+> metodo: eu havia **interrompido** a execucao em 665 de 710 combinacoes,
+> com os maiores conjuntos ainda na fila, e conclui da interrupcao em vez de
+> da observacao. Retomada, ela completou 684 de 710 e cobriu os 142
+> conjuntos. A varredura exata e muito mais cara, e isso e real; mas ela
+> termina em 96% das combinacoes.
 
 ### O que seria preciso para os erros baterem
 
