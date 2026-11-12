@@ -2173,6 +2173,65 @@ todos nos maiores conjuntos, com o limite de 1 800 s por metodo.
 > conjuntos. A varredura exata e muito mais cara, e isso e real; mas ela
 > termina em 96% das combinacoes.
 
+
+#### A execucao `final-pareado`: os numeros oficiais com os pares certos
+
+Junta tudo o que a auditoria de pares produziu. Tres renomeacoes do lado da
+quantificationlib, porque o pareamento vem dos nomes gravados nas parciais e
+nao dos canonicos do registro, e quatro substituicoes de medida:
+
+| renomeado | por que |
+| --- | --- |
+| `GACC` -> `TAC` | o `AC` dela e a forma fechada de Forman no limiar padrao, que e o `TAC`; o `GACC` resolve regressao restrita sempre |
+| `PWK` -> `PWKAC` | e AC sobre o classificador PWK, nao contagem pura |
+| `HDy` -> `HDy8` | 8 intervalos fixos, para parear com o `HDy8` da mlquantify |
+
+| substituido | de onde | por que |
+| --- | --- | --- |
+| mlquantify `PWKAC`, `HDy8` | `pares-novos` | os pares novos, medidos |
+| mlquantify `EMQ` | `emq-alinhado` | `max_iter` de 100 para 1000 |
+| qunfold `EMQ` | `emq-alinhado` | 1e-6/100 para 1e-4/1000 |
+
+**O efeito em Q1**, contra a `final-emq`:
+
+| | antes | depois |
+| --- | --- | --- |
+| qlib: diferenca absoluta media | 0,0094 | **0,0047** |
+| qlib: iguais ate 1e-3 | 75,3% | **82,3%** |
+| qlib: iguais ate 1e-2 | 84,7% | **91,4%** |
+| qlib: correlacao | 0,9599 | **0,9834** |
+| quapy: diferenca absoluta media | 0,0089 | 0,0087 |
+| qunfold: diferenca absoluta media | 0,0045 | 0,0045 |
+
+A quantificationlib muda de patamar: a discordancia cai pela metade e a
+correlacao vai de 0,96 para 0,98. A quapy mal se move, o que e esperado --
+so o `EMQ` dela mudou de par. A qunfold fica igual.
+
+**E a leitura e outra.** Antes, a quantificationlib parecia a biblioteca que
+mais discorda da proposta. Com os pares certos ela e a que **mais concorda**
+em concordancia pratica (91,4% dos casos ate 0,01, contra 83,2% da quapy).
+O que estava sendo medido como discordancia de implementacao era, em tres
+metodos, discordancia de identidade de metodo.
+
+**Dois metodos da mlquantify ficam sem par, e isso esta correto:** o `ACC`
+binario, porque nenhuma das outras tres expoe um metodo com esse nome depois
+das correcoes -- mas o gemeo dele, o `TAC`, esta pareado, e os dois sao bit a
+bit identicos nos 564 casos; e o `PWK` sem ajuste, porque o da
+quantificationlib e ajustado. Do outro lado, o `MLQ` da qunfold tambem fica
+sem par.
+
+**Uma pendencia registrada.** A tolerancia do `EMQ` da qunfold deveria voltar
+para 1e-6, pelo motivo explicado na secao anterior -- igualar o numero nao
+iguala o criterio, porque ela compara iteracoes pela norma L2 e as outras por
+erro absoluto medio. A remedicao nao pode ser feita nesta maquina enquanto o
+Smart App Control bloquear o `jaxlib`; conferido que nem reinstalar nem
+instalar fora do OneDrive resolve, ao contrario do `pandas`, que voltou com
+um `--force-reinstall` da mesma versao. Os dois valores em disputa, 0,000127
+e 0,000422, estao uma ordem de grandeza abaixo do limiar de 1e-3 da Q1.
+
+A `final-pareado` esta em `results/final-pareado/`, e as anteriores nao foram
+alteradas.
+
 ### O que seria preciso para os erros baterem
 
 Auditoria dos 39 pares da `final-emq`, em resposta a pergunta direta de
