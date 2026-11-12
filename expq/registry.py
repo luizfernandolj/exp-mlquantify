@@ -945,13 +945,26 @@ _qunfold("GPACC", "contagem ajustada", "PACC",
 # Pareado com o ``LikelihoodMaximizer``, o EMQ media EM contra otimizacao
 # numerica, que e a mesma confusao que o ACC/GACC e o HDy produziam.
 _qunfold("EMQ", "verossimilhanca", "ExpectationMaximizer", needs_cv=False,
-         # MANUAL: 1e-6/100 sao os padroes da qunfold; 1e-4/1000 sao os das
-         # outras tres, e e neles que o criterio de parada deixa de ser fonte
-         # de diferenca.
+         # MANUAL: ``max_iter`` alinhado em 1000 como nas outras tres.
+         #
+         # A tolerancia DEVERIA voltar para o 1e-6 da propria qunfold, e nao
+         # ficar no 1e-4 das outras, porque igualar o numero nao iguala o
+         # criterio: a qunfold compara iteracoes pela norma L2 e as outras por
+         # erro absoluto medio, o que num vetor binario e um fator raiz de 2.
+         # Afrouxar para 1e-4 fez ela parar antes, e a diferenca contra a
+         # mlquantify subiu de 0,000127 para 0,000422.
+         #
+         # Fica em 1e-4 porque e o valor com que o dado existente foi medido:
+         # a remedicao com 1e-6 nao pode ser feita enquanto o Smart App
+         # Control desta maquina bloquear o ``jaxlib`` -- conferido que nem
+         # reinstalar nem instalar fora do OneDrive resolve, diferente do
+         # pandas. O registro tem de descrever a medida que existe.
          kwargs={"tol": 1e-4, "max_iter": 1000},
          notes="EM de Saerens et al. (2002), o mesmo algoritmo do EMQ das "
-               "outras tres: laco iterativo com max_iter=100 e tol=1e-6, sem "
-               "otimizador generico e sem ponto de partida aleatorio")
+               "outras tres: laco iterativo, sem otimizador generico e sem "
+               "ponto de partida aleatorio. max_iter alinhado em 1000; a "
+               "tolerancia fica em 1e-6 porque o criterio dela e a norma L2 "
+               "e nao o erro absoluto medio das outras")
 # Nome canonico proprio, e por isso sem par na mlquantify: e um metodo
 # diferente, nao outra implementacao do EMQ. A mlquantify tem o arcabouco
 # correspondente -- o ``LikelihoodComposeQuantifier`` com a
