@@ -186,6 +186,12 @@ def main(argv=None) -> int:
     limit_threads(cfg.threads_per_worker)
     silence_warnings()
 
+    # O escalonador mede o tempo limite de cada job: ele tambem nao pode ser
+    # rebaixado, e enquanto vive a maquina nao dorme.
+    from .config import keep_full_speed
+
+    keep_full_speed(stay_awake=True)
+
     selected = load_selected(cfg)
     if selected.empty:
         print("Nenhum conjunto de dados selecionado com esses filtros.")

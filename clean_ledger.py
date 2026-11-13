@@ -13,6 +13,13 @@ que estava limpo e preservado.
 
     python clean_ledger.py --run-id final --out-dir C:\\Users\\voce\\exp-run
     python clean_ledger.py --run-id final --out-dir ... --apply
+
+O detector de lacunas confunde um metodo longo, que passa meia hora sem
+gravar nada, com uma suspensao. Quando o log de energia do Windows da as
+suspensoes reais, passe-as com ``--janela INICIO FIM`` (repetivel), e so
+elas contam. ``--refazer-metodo`` e ``--refazer-dataset`` removem tambem
+combinacoes limpas, para refaze-las depois de mudar o codigo ou quando a
+maquina mediu em condicoes diferentes.
 """
 
 from __future__ import annotations
@@ -54,8 +61,14 @@ def find_gaps(entries):
     return gaps
 
 
-def is_contaminated(entry, gaps):
+def is_contaminated(entry, gaps, metodos=(), datasets=()):
     """A combinacao cruzou uma suspensao, ou foi encerrada por tempo limite."""
+    if entry.get("method") in metodos:
+        return f"refazer o metodo {entry['method']}"
+    nome = Path(entry.get("dataset_id", "")).name
+    for d in datasets:
+        if nome.startswith(d):
+            return f"refazer o conjunto {d}"
     if entry.get("status") in BAD_STATUS:
         return "encerrada por tempo limite falso"
     ts = entry.get("ts")
@@ -75,6 +88,14 @@ def main() -> int:
     p.add_argument("--run-id", default="final")
     p.add_argument("--out-dir", default=None,
                    help="pasta usada na execucao, se fora do repositorio")
+    p.add_argument("--janela", nargs=2, action="append", metavar=("INICIO", "FIM"),
+                   help="suspensao real, em ISO (2026-11-12T15:25:00); repetivel. "
+                        "Se dada, substitui a deteccao por lacunas")
+    p.add_argument("--refazer-metodo", action="append", default=[],
+                   help="remove todas as combinacoes deste metodo; repetivel")
+    p.add_argument("--refazer-dataset", action="append", default=[],
+                   help="remove as combinacoes do conjunto cujo nome comeca "
+                        "assim; repetivel")
     p.add_argument("--apply", action="store_true",
                    help="grava as mudancas; sem isso apenas mostra o que faria")
     args = p.parse_args()
@@ -92,17 +113,22 @@ def main() -> int:
         return 1
 
     entries = read_ledger(ledger_root)
-    gaps = find_gaps(entries)
+    if args.janela:
+        gaps = [(datetime.fromisoformat(a), datetime.fromisoformat(b))
+                for a, b in args.janela]
+    else:
+        gaps = find_gaps(entries)
 
     print(f"combinacoes no ledger: {len(entries)}")
-    print(f"\nsuspensoes detectadas: {len(gaps)}")
+    origem = "informadas" if args.janela else "detectadas"
+    print(f"\nsuspensoes {origem}: {len(gaps)}")
     for a, b in gaps:
         print(f"  {a:%d/%m %H:%M:%S} -> {b:%d/%m %H:%M:%S}   "
               f"({(b - a).total_seconds() / 3600:.1f} h parado)")
 
     bad, keep = [], []
     for path, n, e in entries:
-        reason = is_contaminated(e, gaps)
+        reason = is_contaminated(e, gaps, args.refazer_metodo, args.refazer_dataset)
         (bad if reason else keep).append((path, n, e, reason))
 
     print(f"\ncontaminadas : {len(bad)}")

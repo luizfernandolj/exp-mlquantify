@@ -199,6 +199,51 @@ def limit_threads(n: int = 1) -> None:
     os.environ["JAX_PLATFORMS"] = "cpu"  # evita sondar GPU a cada processo
 
 
+def keep_full_speed(stay_awake: bool = False) -> bool:
+    """Pede ao Windows que nao rebaixe este processo, e opcionalmente que nao durma.
+
+    Com o plano "Equilibrado", o Windows 11 aplica o EcoQoS a processos em
+    segundo plano quando a sessao fica ociosa: o clock cai e, nos
+    processadores hibridos, o trabalho vai para os nucleos de eficiencia. Na
+    custo-final os controles CC e PCC, que nao mudaram, ficaram de 1,4 a 2
+    vezes mais lentos no passo noturno dos gigantes, o que torna as medidas
+    de custo incomparaveis com as de dia. ``SetProcessInformation`` desliga
+    o EcoQoS so para este processo; ``SetThreadExecutionState`` impede que o
+    computador durma enquanto o processo vive, como faz um reprodutor de
+    video. Nenhum dos dois muda configuracao do sistema, e ambos acabam com
+    o processo.
+    """
+    if os.name != "nt":
+        return False
+    try:
+        import ctypes
+        from ctypes import wintypes
+
+        class _ThrottlingState(ctypes.Structure):
+            _fields_ = [("Version", wintypes.ULONG),
+                        ("ControlMask", wintypes.ULONG),
+                        ("StateMask", wintypes.ULONG)]
+
+        process_power_throttling = 4          # PROCESS_INFORMATION_CLASS
+        execution_speed = 0x1                 # PROCESS_POWER_THROTTLING_EXECUTION_SPEED
+        state = _ThrottlingState(1, execution_speed, 0)  # controlado, desligado
+        kernel32 = ctypes.windll.kernel32
+        kernel32.GetCurrentProcess.restype = wintypes.HANDLE
+        kernel32.SetProcessInformation.argtypes = [
+            wintypes.HANDLE, ctypes.c_int, ctypes.c_void_p, wintypes.DWORD]
+        kernel32.SetProcessInformation.restype = wintypes.BOOL
+        kernel32.SetThreadExecutionState.argtypes = [wintypes.DWORD]
+        ok = kernel32.SetProcessInformation(
+            kernel32.GetCurrentProcess(), process_power_throttling,
+            ctypes.byref(state), ctypes.sizeof(state))
+        if stay_awake:
+            es_continuous, es_system_required = 0x80000000, 0x00000001
+            kernel32.SetThreadExecutionState(es_continuous | es_system_required)
+        return bool(ok)
+    except Exception:
+        return False  # versao antiga do Windows; segue como antes
+
+
 def pin_to_core(core: int) -> int | None:
     """Prende o processo atual a um nucleo logico.
 

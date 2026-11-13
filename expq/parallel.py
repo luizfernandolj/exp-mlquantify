@@ -103,6 +103,9 @@ def _worker(cfg_dict: dict, dataset_row: dict, library: str, done: set,
             progress_queue, slot: int = 0) -> None:
     silence_warnings()
     cfg = config_from_dict(cfg_dict)
+    from .config import keep_full_speed
+
+    keep_full_speed()
     if cfg.pin_cpu:
         from .config import pin_to_core
 
