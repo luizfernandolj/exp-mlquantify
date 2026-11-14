@@ -404,135 +404,257 @@ def imprimir_teste(teste: pd.DataFrame, margem: float, erro: str) -> None:
 
 
 # ---------------------------------------------------------------------------
-# grafico de floresta
+# custo: razao pareada, com a mesma gramatica do teste de erro
+# ---------------------------------------------------------------------------
+#
+# A razao de custo e tratada no logaritmo, porque so no log a razao e
+# simetrica: 2x mais caro e 0,5x mais barato ficam a mesma distancia de 1.
+# A mediana e o intervalo saem do mesmo estimador de Hodges-Lehmann usado no
+# erro, e voltam para a escala de razao no fim.
+
+def testar_custo(pares: pd.DataFrame, coluna: str) -> pd.DataFrame:
+    linhas = []
+    a, b = f"{coluna}_minha", f"{coluna}_dela"
+    if a not in pares or b not in pares:
+        return pd.DataFrame()
+    for (metodo, lib), sub in pares.groupby(["metodo", "biblioteca"]):
+        v = sub[(sub[a] > 0) & (sub[b] > 0)]
+        # uma observacao por conjunto: os quatro tamanhos de amostra do mesmo
+        # conjunto nao sao independentes
+        v = v.groupby("dataset_id")[[a, b]].median()
+        if len(v) < 6:
+            continue
+        d = np.log2(v[a].to_numpy() / v[b].to_numpy())
+        d = d[np.isfinite(d)]
+        if len(d) < 6:
+            continue
+        hl, baixo, alto = hodges_lehmann(d)
+        linhas.append({
+            "metodo": metodo, "biblioteca": lib, "n_conjuntos": len(d),
+            "razao": float(2.0 ** hl),
+            "ic_baixo": float(2.0 ** baixo), "ic_alto": float(2.0 ** alto),
+            "ganha": bool(2.0 ** alto < 1.0),
+            "perde": bool(2.0 ** baixo > 1.0),
+        })
+    out = pd.DataFrame(linhas)
+    if out.empty:
+        return out
+    return out.sort_values("razao").reset_index(drop=True)
+
+
+def imprimir_custo(tabela: pd.DataFrame, titulo: str) -> None:
+    ganha = int(tabela["ganha"].sum())
+    perde = int(tabela["perde"].sum())
+    print()
+    print("=" * 70)
+    print(f"{titulo.upper()}: RAZAO MLQUANTIFY / OUTRA, POR CONJUNTO")
+    print("=" * 70)
+    print(f"{'metodo':<9}{'biblioteca':<19}{'n':>4}{'razao':>9}{'IC 95%':>20}")
+    for _, r in tabela.iterrows():
+        ic = f"[{r['ic_baixo']:.2f}, {r['ic_alto']:.2f}]"
+        print(f"{r['metodo']:<9}{r['biblioteca']:<19}{r['n_conjuntos']:>4}"
+              f"{r['razao']:>9.2f}{ic:>20}")
+    print(f"\n  IC inteiro abaixo de 1 (vantagem firme): {ganha} de "
+          f"{len(tabela)}   acima de 1: {perde}")
+
+
+# ---------------------------------------------------------------------------
+# figuras
 # ---------------------------------------------------------------------------
 
-#: Uma cor por biblioteca rival, legiveis em fundo escuro.
+#: Uma cor por biblioteca rival. Distinguiveis tambem em escala de cinza e
+#: para quem nao separa vermelho de verde.
 CORES = {
-    "quapy": "#7aa2f7",
-    "quantificationlib": "#e0af68",
-    "qunfold": "#9ece6a",
+    "quapy": "#2b6cb0",
+    "quantificationlib": "#b7791f",
+    "qunfold": "#2f7a5a",
 }
-COR_EXTRA = ["#bb9af7", "#f7768e", "#7dcfff"]
+COR_EXTRA = ["#6b46c1", "#9b2c2c", "#2c7a7b"]
+
+TINTA = "#1a1a1a"
+FRACO = "#6b6b6b"
+GRADE = "#d9d9d9"
+FUNDO = "#ffffff"
 
 
-def figura(teste: pd.DataFrame, margem: float, erro: str,
-           destino: Path) -> str:
-    """Floresta: um ponto por par, cor por biblioteca, faixa de equivalencia.
+def _estilo(ax, *, fonte=13):
+    ax.set_facecolor(FUNDO)
+    ax.tick_params(colors=TINTA, labelsize=fonte, length=0)
+    for lado in ("top", "right", "left"):
+        ax.spines[lado].set_visible(False)
+    ax.spines["bottom"].set_color(GRADE)
+    ax.grid(axis="x", color=GRADE, lw=0.7)
+    ax.set_axisbelow(True)
 
-    Devolve o svg como texto, para embutir no painel.
-    """
+
+def _posicoes(tabela: pd.DataFrame, ordem, desloc=0.26):
+    """y de cada par, agrupado por metodo, uma linha por biblioteca."""
+    ys, rotulos, y = {}, [], 0.0
+    for metodo in ordem:
+        sub = tabela[tabela["metodo"] == metodo]
+        n = len(sub)
+        for k, lib in enumerate(sorted(sub["biblioteca"])):
+            ys[(metodo, lib)] = y + (k - (n - 1) / 2) * desloc
+        rotulos.append((y, metodo))
+        y -= 1.0
+    return ys, rotulos, y
+
+
+def _cores_de(tabela):
+    cores = dict(CORES)
+    extras = [l for l in sorted(tabela["biblioteca"].unique()) if l not in cores]
+    for i, lib in enumerate(extras):
+        cores[lib] = COR_EXTRA[i % len(COR_EXTRA)]
+    return cores
+
+
+def _legenda_bibliotecas(fig, ax, cores, libs, extra=(), fonte=12):
+    from matplotlib.lines import Line2D
+
+    itens = [Line2D([], [], color=cores[l], lw=0, marker="o", ms=9, label=l)
+             for l in libs] + list(extra)
+    leg = ax.legend(handles=itens, loc="lower left", bbox_to_anchor=(0, 1.0),
+                    frameon=False, fontsize=fonte, ncols=len(itens),
+                    handletextpad=0.4, columnspacing=1.6)
+    return leg
+
+
+def _salvar(fig, destino: Path) -> str:
+    fig.savefig(destino, facecolor=FUNDO, bbox_inches="tight")
+    for ext in (".svg", ".pdf"):
+        fig.savefig(destino.with_suffix(ext), facecolor=FUNDO,
+                    bbox_inches="tight")
+    texto = destino.with_suffix(".svg").read_text(encoding="utf-8")
+    return texto[texto.index("<svg"):]
+
+
+def figura_equivalencia(teste: pd.DataFrame, margem: float, erro: str,
+                        destino: Path) -> str:
+    """Floresta do teste de equivalencia, uma escala so."""
     import matplotlib
 
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
     from matplotlib.lines import Line2D
 
-    fg, fraco, fundo = "#edeae4", "#9a968e", "#1d1c1a"
+    cores = _cores_de(teste)
     libs = sorted(teste["biblioteca"].unique())
-    cores = dict(CORES)
-    for i, lib in enumerate(l for l in libs if l not in cores):
-        cores[lib] = COR_EXTRA[i % len(COR_EXTRA)]
-
-    # metodos ordenados pela maior discrepancia, do topo para baixo
-    ordem = (teste.assign(abs_hl=teste["hl"].abs())
-             .groupby("metodo")["abs_hl"].max()
+    ordem = (teste.assign(a=teste["hl"].abs()).groupby("metodo")["a"].max()
              .sort_values(ascending=False).index.tolist())
-    passo = 1.0
-    desloc = 0.24
-    ys, rotulos = {}, []
-    y = 0.0
-    for metodo in ordem:
-        sub = teste[teste["metodo"] == metodo]
-        n = len(sub)
-        for k, lib in enumerate(sorted(sub["biblioteca"])):
-            ys[(metodo, lib)] = y + (k - (n - 1) / 2) * desloc
-        rotulos.append((y, metodo))
-        y -= passo
+    ys, rotulos, fim = _posicoes(teste, ordem)
 
-    altura = max(4.0, 0.46 * len(ordem) + 2.2)
-    fig, (ax, ax2) = plt.subplots(
-        1, 2, figsize=(10.6, altura), dpi=120, sharey=True,
-        gridspec_kw={"width_ratios": [2.1, 1.0], "wspace": 0.06})
-    fig.patch.set_facecolor(fundo)
+    limite = max(margem * 1.6,
+                 float(np.nanmax(np.abs(
+                     teste[["ic_baixo", "ic_alto"]].to_numpy()))) * 1.15)
 
-    limite = max(margem * 1.9, float(
-        np.nanmax(np.abs(teste[["ic_baixo", "ic_alto"]].to_numpy()))) * 1.25)
-    largo = float(np.nanmax(np.abs(teste[["p10", "p90"]].to_numpy()))) * 1.06
+    fig, ax = plt.subplots(figsize=(7.6, 0.44 * len(ordem) + 2.0), dpi=200)
+    fig.patch.set_facecolor(FUNDO)
+    _estilo(ax)
 
-    for eixo in (ax, ax2):
-        eixo.set_facecolor(fundo)
-        eixo.axvspan(-margem, margem, color="#5bbf95", alpha=0.13, lw=0,
-                     zorder=0)
-        for x in (-margem, margem):
-            eixo.axvline(x, color="#5bbf95", alpha=0.5, lw=1.0, ls="--",
-                         zorder=1)
-        eixo.axvline(0, color=fraco, lw=0.9, zorder=1)
-        eixo.tick_params(colors=fraco, labelsize=8.5)
-        for lado in ("top", "right", "left"):
-            eixo.spines[lado].set_visible(False)
-        eixo.spines["bottom"].set_color(fraco)
-        eixo.grid(axis="x", color=fg, alpha=0.07, lw=0.8)
-        eixo.set_axisbelow(True)
+    ax.axvspan(-margem, margem, color="#4a9e7f", alpha=0.12, lw=0, zorder=0)
+    ax.axvline(0, color=FRACO, lw=1.0, zorder=1)
 
     for _, r in teste.iterrows():
-        yy = ys[(r["metodo"], r["biblioteca"])]
+        y = ys[(r["metodo"], r["biblioteca"])]
         cor = cores[r["biblioteca"]]
         dentro = bool(r["ic_na_faixa"])
-        marca = "o" if dentro else "D"
-        # esquerda: a regiao da decisao, com o intervalo de confianca
-        ax.plot([max(r["p10"], -limite), min(r["p90"], limite)], [yy, yy],
-                color=cor, lw=1.0, alpha=0.35, solid_capstyle="butt", zorder=2)
-        for valor, seta in ((r["p10"], "<"), (r["p90"], ">")):
-            if abs(valor) > limite:
-                ax.plot([np.sign(valor) * limite], [yy], marker=seta, ms=3.4,
-                        color=cor, alpha=0.5, zorder=2)
-        ax.plot([r["ic_baixo"], r["ic_alto"]], [yy, yy], color=cor, lw=3.2,
-                solid_capstyle="round", zorder=3)
-        ax.plot([r["hl"]], [yy], marker=marca, ms=5.2, color=cor, mec=fundo,
-                mew=0.9, zorder=4)
-        # direita: a mesma linha em escala cheia, para ver a variabilidade
-        ax2.plot([r["p10"], r["p90"]], [yy, yy], color=cor, lw=1.0,
-                 alpha=0.45, solid_capstyle="round", zorder=2)
-        ax2.plot([r["hl"]], [yy], marker=marca, ms=3.6, color=cor, mec=fundo,
-                 mew=0.7, zorder=4)
+        ax.plot([r["ic_baixo"], r["ic_alto"]], [y, y], color=cor, lw=2.6,
+                solid_capstyle="round", alpha=0.95 if dentro else 1.0, zorder=3)
+        ax.plot([r["hl"]], [y], marker="o" if dentro else "D", ms=7.0,
+                color=cor if dentro else FUNDO, mec=cor, mew=2.0, zorder=4)
 
     ax.set_xlim(-limite, limite)
-    ax2.set_xlim(-largo, largo)
+    ax.set_ylim(fim + 0.05, 1.05)
     ax.set_yticks([p for p, _ in rotulos])
-    ax.set_yticklabels([m for _, m in rotulos], color=fg, fontsize=9)
-    ax.set_ylim(y + passo / 2 - 0.3, 0.6)
-    ax.set_xlabel(f"diferenca de {erro.upper()} por conjunto  "
-                  f"(mlquantify - outra biblioteca)", color=fg, fontsize=9.5)
-    ax2.set_xlabel("escala cheia: 95% centrais dos conjuntos",
-                   color=fraco, fontsize=8.5)
-    ax2.tick_params(axis="y", length=0)
-    ax.tick_params(axis="y", length=0)
+    ax.set_yticklabels([m for _, m in rotulos], fontsize=13, color=TINTA)
+    ax.set_xlabel(f"diferenca de {erro.upper()} (mlquantify $-$ outra biblioteca)",
+                  fontsize=13.5, color=TINTA, labelpad=10)
 
-    legenda = [Line2D([], [], color=cores[l], lw=3, label=l) for l in libs]
-    legenda += [
-        Line2D([], [], color=fraco, lw=3, label="IC 95% da diferenca"),
-        Line2D([], [], color=fraco, lw=1, alpha=0.5,
-               label="95% centrais dos conjuntos"),
-        Line2D([], [], color=fraco, marker="o", ls="", ms=5,
-               label="IC inteiro na faixa"),
-        Line2D([], [], color=fraco, marker="D", ls="", ms=5,
-               label="IC sai da faixa"),
+    # o que cada lado quer dizer, sem paragrafo
+    ax.annotate("mlquantify erra menos", xy=(-limite * 0.97, 1.05),
+                xytext=(-limite * 0.97, 1.05), fontsize=12, color=FRACO,
+                ha="left", va="bottom")
+    ax.annotate("erra mais", xy=(limite * 0.97, 1.05), fontsize=12,
+                color=FRACO, ha="right", va="bottom")
+    ax.annotate(f"faixa de equivalencia  $\\pm${margem:g}", xy=(0, fim + 0.75),
+                fontsize=12, color="#2f6b56", ha="center", va="center")
+
+    chave = [
+        Line2D([], [], color=TINTA, lw=2.6, marker="o", ms=7,
+               label="diferenca mediana e IC de 95%"),
+        Line2D([], [], color=TINTA, lw=2.6, marker="D", ms=7, mfc=FUNDO,
+               mew=2.0, label="IC fora da faixa"),
     ]
-    leg = ax.legend(handles=legenda, loc="lower left",
-                    bbox_to_anchor=(0.0, 1.015), frameon=False,
-                    fontsize=8, ncols=4, labelcolor=fg,
-                    columnspacing=1.4, handlelength=1.8)
+    _legenda_bibliotecas(fig, ax, cores, libs, extra=chave)
+    return _salvar(fig, destino)
 
-    ax.set_title(f"Faixa de equivalencia +-{margem:g} de {erro.upper()}",
-                 color=fg, fontsize=11, loc="left", pad=44)
-    fig.tight_layout()
-    fig.savefig(destino, facecolor=fundo)
-    svg = destino.with_suffix(".svg")
-    fig.savefig(svg, facecolor=fundo, format="svg")
-    plt.close(fig)
-    texto = svg.read_text(encoding="utf-8")
-    return texto[texto.index("<svg"):]
+
+def figura_custo(tabela: pd.DataFrame, titulo: str, destino: Path) -> str:
+    """Razao de custo por par, em escala logaritmica, com IC de 95%."""
+    import matplotlib
+
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+    from matplotlib.lines import Line2D
+    from matplotlib.ticker import FixedLocator, NullFormatter
+
+    cores = _cores_de(tabela)
+    libs = sorted(tabela["biblioteca"].unique())
+    ordem = (tabela.groupby("metodo")["razao"].min()
+             .sort_values().index.tolist())
+    ys, rotulos, fim = _posicoes(tabela, ordem)
+
+    # limites assimetricos: a figura nao precisa de espaco vazio do lado
+    # onde nenhum par chega
+    esq = min(float(np.nanmin(tabela["ic_baixo"])) / 1.3, 1 / 1.6)
+    dir_ = max(float(np.nanmax(tabela["ic_alto"])) * 1.3, 1.6)
+
+    fig, ax = plt.subplots(figsize=(7.6, 0.44 * len(ordem) + 2.0), dpi=200)
+    fig.patch.set_facecolor(FUNDO)
+    _estilo(ax)
+    ax.set_xscale("log", base=2)
+
+    ax.axvspan(esq, 1.0, color="#4a9e7f", alpha=0.10, lw=0, zorder=0)
+    ax.axvline(1.0, color=FRACO, lw=1.2, zorder=1)
+
+    for _, r in tabela.iterrows():
+        y = ys[(r["metodo"], r["biblioteca"])]
+        cor = cores[r["biblioteca"]]
+        # cheio quando o intervalo fica inteiro de um lado de 1, vazado
+        # quando cruza: o lado ja esta dito pela posicao
+        firme = bool(r["ganha"]) or bool(r["perde"])
+        ax.plot([r["ic_baixo"], r["ic_alto"]], [y, y], color=cor, lw=2.6,
+                solid_capstyle="round", zorder=3)
+        ax.plot([r["razao"]], [y], marker="o", ms=7.0,
+                color=cor if firme else FUNDO, mec=cor, mew=2.0, zorder=4)
+
+    marcas = [m for m in (2.0 ** e for e in range(-8, 9))
+              if esq <= m <= dir_]
+    rotulos_x = {m: (f"1/{int(round(1 / m))}" if m < 1 else f"{int(round(m))}")
+                 for m in marcas}
+    ax.xaxis.set_major_locator(FixedLocator(marcas))
+    ax.set_xticklabels([rotulos_x[m] for m in marcas], fontsize=13)
+    ax.xaxis.set_minor_formatter(NullFormatter())
+    ax.set_xlim(esq, dir_)
+    ax.set_ylim(fim + 0.5, 1.05)
+    ax.set_yticks([p for p, _ in rotulos])
+    ax.set_yticklabels([m for _, m in rotulos], fontsize=13, color=TINTA)
+    ax.set_xlabel(f"{titulo} da mlquantify, em multiplos da outra biblioteca",
+                  fontsize=13.5, color=TINTA, labelpad=10)
+
+    ax.annotate("mlquantify mais barata", xy=(esq * 1.05, 1.05),
+                fontsize=12, color=FRACO, ha="left", va="bottom")
+    ax.annotate("mais cara", xy=(dir_ * 0.97, 1.05), fontsize=12, color=FRACO,
+                ha="right", va="bottom")
+
+    chave = [
+        Line2D([], [], color=TINTA, lw=2.6, marker="o", ms=7,
+               label="razao mediana e IC de 95%"),
+        Line2D([], [], color=TINTA, lw=2.6, marker="o", ms=7, mfc=FUNDO,
+               mew=2.0, label="IC cruza 1"),
+    ]
+    _legenda_bibliotecas(fig, ax, cores, libs, extra=chave)
+    return _salvar(fig, destino)
 
 
 # ---------------------------------------------------------------------------
@@ -627,7 +749,7 @@ def _tabela_teste(teste: pd.DataFrame, margem: float) -> str:
 def html_painel(resumo: pd.DataFrame, pares: pd.DataFrame, run_id: str,
                 custo_run: str | None, teste: pd.DataFrame | None = None,
                 svg: str | None = None, margem: float = MARGEM,
-                erro: str = "mae") -> str:
+                erro: str = "mae", svg_custo: list | None = None) -> str:
     res = resumo.copy()
     res["veredito"] = res.apply(veredito, axis=1)
     caras, erradas, ganhos = _classificar(res)
@@ -717,14 +839,13 @@ Wilcoxon) com margem de {margem:g} em {erro.upper()}, pareado por conjunto
 de dados, com Holm sobre os {len(teste)} pares. Um p de equivalencia pequeno
 <b>afirma</b> que as duas erram igual dentro da margem. Resultado:
 {resumo_vereditos}.</p>
-<figure>{svg or ""}<figcaption>Cada ponto e a diferenca mediana de
-{erro.upper()} (Hodges-Lehmann) entre a mlquantify e a outra biblioteca, no
-mesmo metodo. A barra grossa e o intervalo de confianca de 95% dessa
-diferenca; a linha fina cobre os 80% centrais dos conjuntos, para mostrar a
-variabilidade de onde o intervalo saiu. A faixa verde e a margem de
-equivalencia: quando o intervalo de 95% cabe inteiro nela (circulo), a
-compatibilidade esta demonstrada, nao apenas nao refutada. Diamante marca o
-intervalo que escapa da faixa.</figcaption></figure>
+<figure>{svg or ""}<figcaption>Cada linha e um metodo contra uma
+biblioteca. O ponto e a diferenca mediana de {erro.upper()}
+(Hodges-Lehmann) e a barra e o intervalo de confianca de 95% dessa
+diferenca. A faixa verde e a margem de equivalencia: quando o intervalo
+cabe inteiro nela (circulo cheio), a compatibilidade esta demonstrada, e
+nao apenas nao refutada; o losango vazado marca o intervalo que
+escapa.</figcaption></figure>
 {_tabela_teste(teste, margem)}
 <p class="nota">Unidade de analise: o conjunto de dados. O erro do mesmo
 conjunto nos quatro tamanhos de amostra nao sao observacoes independentes,
@@ -734,6 +855,17 @@ supoe normalidade. &quot;Diferenca irrelevante&quot; e o par em que os dois
 testes rejeitam: existe diferenca sistematica, e ela cabe dentro da margem.
 &quot;Inconclusivo&quot; e falta de evidencia nos dois sentidos, nao
 igualdade.</p>"""
+
+    if svg_custo:
+        bloco_teste += f"""
+<h2>Custo: quanto a mlquantify cobra em relacao a outra</h2>
+<p class="sub">Mesma leitura do grafico acima, agora com o objetivo
+invertido: aqui interessa ficar <b>a esquerda</b> de 1. A escala e
+logaritmica, porque so nela 2x mais caro e metade do custo ficam a mesma
+distancia de 1. Cada observacao e um conjunto de dados, pareado entre as
+duas bibliotecas.</p>
+{"".join(f'<figure>{s}<figcaption>{html.escape(c)}</figcaption></figure>'
+         for s, c in svg_custo)}"""
 
     nota_custo = ""
     if custo_run:
@@ -849,21 +981,44 @@ def main() -> int:
     destino = Path(args.html) if args.html else run_dir / "painel_bibliotecas.html"
     destino.parent.mkdir(parents=True, exist_ok=True)
 
-    teste, svg = None, None
+    teste, svg, svg_custo = None, None, []
     if not args.sem_teste:
         teste = testar(pares, erro=args.erro, margem=args.margem)
         if not teste.empty:
             imprimir_teste(teste, args.margem, args.erro)
             png = destino.with_name(destino.stem + "_equivalencia.png")
-            svg = figura(teste, args.margem, args.erro, png)
+            svg = figura_equivalencia(teste, args.margem, args.erro, png)
             print(f"\ngrafico: {png}")
             teste.to_csv(destino.with_name(destino.stem + "_equivalencia.csv"),
                          index=False)
 
+        for coluna, nome, legenda in (
+            ("tempo_estimacao_total_s", "tempo",
+             "Tempo de estimacao: o total das 400 estimativas de cada "
+             "combinacao. O ponto e a razao mediana entre conjuntos e a "
+             "barra e o intervalo de confianca de 95%; circulo cheio marca "
+             "o par em que o intervalo inteiro fica abaixo de 1, isto e, "
+             "em que a vantagem da mlquantify e estatisticamente firme."),
+            ("memoria_estimacao_mb", "memoria",
+             "Memoria na estimacao, maximo alocado alem da linha de base. "
+             "Mesma leitura do grafico do tempo."),
+        ):
+            tabela = testar_custo(pares, coluna)
+            if tabela.empty:
+                continue
+            titulo = {"tempo": "Tempo de estimacao",
+                      "memoria": "Memoria na estimacao"}[nome]
+            png = destino.with_name(f"{destino.stem}_{nome}.png")
+            svg_custo.append((figura_custo(tabela, titulo, png), legenda))
+            tabela.to_csv(destino.with_name(f"{destino.stem}_{nome}.csv"),
+                          index=False)
+            print(f"grafico: {png}")
+            imprimir_custo(tabela, titulo)
+
     destino.write_text(
         html_painel(resumo, pares, args.run_id, args.custo_run,
                     teste=teste, svg=svg, margem=args.margem,
-                    erro=args.erro),
+                    erro=args.erro, svg_custo=svg_custo),
         encoding="utf-8")
     print(f"painel: {destino}")
     if args.csv:
