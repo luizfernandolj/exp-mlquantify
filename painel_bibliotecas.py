@@ -519,11 +519,16 @@ def _legenda_bibliotecas(fig, ax, cores, libs, extra=(), fonte=12):
     return leg
 
 
-def _salvar(fig, destino: Path) -> str:
-    fig.savefig(destino, facecolor=FUNDO, bbox_inches="tight")
+def _salvar(fig, destino: Path, extras=()) -> str:
+    # extras: artistas fora do eixo (legendas presas com add_artist) que o
+    # recorte "tight" so inclui se forem citados aqui
+    # lista vazia tambem sobrescreveria o padrao do matplotlib
+    extras = list(extras) or None
+    fig.savefig(destino, facecolor=FUNDO, bbox_inches="tight",
+                bbox_extra_artists=extras)
     for ext in (".svg", ".pdf"):
         fig.savefig(destino.with_suffix(ext), facecolor=FUNDO,
-                    bbox_inches="tight")
+                    bbox_inches="tight", bbox_extra_artists=extras)
     texto = destino.with_suffix(".svg").read_text(encoding="utf-8")
     return texto[texto.index("<svg"):]
 
@@ -543,13 +548,21 @@ def figura_equivalencia(teste: pd.DataFrame, margem: float, erro: str,
              .sort_values(ascending=False).index.tolist())
     ys, rotulos, fim = _posicoes(teste, ordem)
 
-    limite = max(margem * 1.6,
+    # A escala para logo depois do dado: so a faixa verde e o intervalo mais
+    # largo precisam caber. Margem maior so cria coluna vazia dos dois lados.
+    limite = max(margem * 1.12,
                  float(np.nanmax(np.abs(
-                     teste[["ic_baixo", "ic_alto"]].to_numpy()))) * 1.15)
+                     teste[["ic_baixo", "ic_alto"]].to_numpy()))) * 1.06)
 
-    fig, ax = plt.subplots(figsize=(7.6, 0.44 * len(ordem) + 2.0), dpi=200)
+    fig, ax = plt.subplots(figsize=(9.4, 0.42 * len(ordem) + 2.4), dpi=200)
     fig.patch.set_facecolor(FUNDO)
     _estilo(ax)
+
+    # faixas alternadas: numa figura larga elas levam o olho do nome do
+    # metodo ate o ponto sem precisar de linha de chamada
+    for i, (p, _) in enumerate(rotulos):
+        if i % 2 == 0:
+            ax.axhspan(p - 0.5, p + 0.5, color="#f4f4f4", lw=0, zorder=-1)
 
     ax.axvspan(-margem, margem, color="#4a9e7f", alpha=0.12, lw=0, zorder=0)
     ax.axvline(0, color=FRACO, lw=1.0, zorder=1)
@@ -564,29 +577,41 @@ def figura_equivalencia(teste: pd.DataFrame, margem: float, erro: str,
                 color=cor if dentro else FUNDO, mec=cor, mew=2.0, zorder=4)
 
     ax.set_xlim(-limite, limite)
-    ax.set_ylim(fim + 0.05, 1.05)
+    ax.set_ylim(fim + 0.5, 1.05)
     ax.set_yticks([p for p, _ in rotulos])
     ax.set_yticklabels([m for _, m in rotulos], fontsize=13, color=TINTA)
     ax.set_xlabel(f"diferenca de {erro.upper()} (mlquantify $-$ outra biblioteca)",
                   fontsize=13.5, color=TINTA, labelpad=10)
 
     # o que cada lado quer dizer, sem paragrafo
-    ax.annotate("mlquantify erra menos", xy=(-limite * 0.97, 1.05),
-                xytext=(-limite * 0.97, 1.05), fontsize=12, color=FRACO,
-                ha="left", va="bottom")
-    ax.annotate("erra mais", xy=(limite * 0.97, 1.05), fontsize=12,
-                color=FRACO, ha="right", va="bottom")
-    ax.annotate(f"faixa de equivalencia  $\\pm${margem:g}", xy=(0, fim + 0.75),
-                fontsize=12, color="#2f6b56", ha="center", va="center")
+    ax.annotate("$\\leftarrow$ mlquantify erra menos", xy=(-limite * 0.97, 0.72),
+                fontsize=13, color=FRACO, ha="left", va="center")
+    ax.annotate("erra mais $\\rightarrow$", xy=(limite * 0.97, 0.72),
+                fontsize=13, color=FRACO, ha="right", va="center")
+    leg_libs = _legenda_bibliotecas(fig, ax, cores, libs)
+    ax.add_artist(leg_libs)
+
+    # Como ler, em palavras e fora do desenho: o leitor olha a chave uma vez
+    # e volta para a figura.
+    from matplotlib.patches import Patch
 
     chave = [
-        Line2D([], [], color=TINTA, lw=2.6, marker="o", ms=7,
-               label="diferenca mediana e IC de 95%"),
-        Line2D([], [], color=TINTA, lw=2.6, marker="D", ms=7, mfc=FUNDO,
-               mew=2.0, label="IC fora da faixa"),
+        Line2D([], [], color=TINTA, lw=0, marker="o", ms=8,
+               label="ponto: a diferenca tipica"),
+        Line2D([], [], color=TINTA, lw=3.0, marker=None,
+               label="barra: onde essa diferenca cai em 95% das vezes"),
+        Line2D([], [], color=TINTA, lw=0, marker="D", ms=8, mfc=FUNDO,
+               mew=2.0, label="vazado: a barra escapa da faixa"),
+        Patch(facecolor="#4a9e7f", alpha=0.18, lw=0,
+              label=f"faixa verde: diferenca menor que {margem:g}, sem efeito pratico"),
     ]
-    _legenda_bibliotecas(fig, ax, cores, libs, extra=chave)
-    return _salvar(fig, destino)
+    # presa ao eixo, logo abaixo do rotulo: encostada na figura, nao no rodape
+    desce = -0.9 / (0.42 * len(ordem) + 2.4)
+    leg_chave = ax.legend(handles=chave, loc="upper center",
+                          bbox_to_anchor=(0.5, desce), frameon=False,
+                          fontsize=12.5, ncols=2, handletextpad=0.6,
+                          columnspacing=2.4, labelspacing=0.5)
+    return _salvar(fig, destino, extras=[leg_libs, leg_chave])
 
 
 def figura_custo(tabela: pd.DataFrame, titulo: str, destino: Path) -> str:
