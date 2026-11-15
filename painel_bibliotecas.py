@@ -474,6 +474,7 @@ COR_EXTRA = ["#6b46c1", "#9b2c2c", "#2c7a7b"]
 TINTA = "#1a1a1a"
 FRACO = "#6b6b6b"
 GRADE = "#d9d9d9"
+VERDE = "#2f7a5a"
 FUNDO = "#ffffff"
 
 
@@ -548,70 +549,80 @@ def figura_equivalencia(teste: pd.DataFrame, margem: float, erro: str,
              .sort_values(ascending=False).index.tolist())
     ys, rotulos, fim = _posicoes(teste, ordem)
 
-    # A escala para logo depois do dado: so a faixa verde e o intervalo mais
-    # largo precisam caber. Margem maior so cria coluna vazia dos dois lados.
+    # A escala para logo depois do dado: so a faixa e o intervalo mais largo
+    # precisam caber. Margem maior so cria coluna vazia dos dois lados.
     limite = max(margem * 1.12,
                  float(np.nanmax(np.abs(
                      teste[["ic_baixo", "ic_alto"]].to_numpy()))) * 1.06)
 
-    fig, ax = plt.subplots(figsize=(9.4, 0.42 * len(ordem) + 2.4), dpi=200)
+    altura = 0.50 * len(ordem) + 2.8
+    fig, ax = plt.subplots(figsize=(10.0, altura), dpi=200)
     fig.patch.set_facecolor(FUNDO)
-    _estilo(ax)
+    _estilo(ax, fonte=16)
 
-    # faixas alternadas: numa figura larga elas levam o olho do nome do
-    # metodo ate o ponto sem precisar de linha de chamada
-    for i, (p, _) in enumerate(rotulos):
-        if i % 2 == 0:
+    # Como a faixa ocupa quase toda a largura, quem marca o limite sao as
+    # duas linhas tracejadas; o preenchimento fica so como fundo.
+    ax.axvspan(-margem, margem, color=VERDE, alpha=0.07, lw=0, zorder=0)
+    for lado in (-margem, margem):
+        ax.axvline(lado, color=VERDE, lw=1.8, ls=(0, (5, 4)), zorder=2)
+    ax.axvline(0, color=FRACO, lw=1.2, zorder=1)
+
+    # linhas alternadas levam o olho do nome do metodo ate o ponto; a linha
+    # de quem escapa da faixa fica tingida
+    fora = set(teste.loc[~teste["ic_na_faixa"].astype(bool), "metodo"])
+    for i, (p, metodo) in enumerate(rotulos):
+        if metodo in fora:
+            ax.axhspan(p - 0.5, p + 0.5, color="#fbeaea", lw=0, zorder=-1)
+        elif i % 2 == 0:
             ax.axhspan(p - 0.5, p + 0.5, color="#f4f4f4", lw=0, zorder=-1)
-
-    ax.axvspan(-margem, margem, color="#4a9e7f", alpha=0.12, lw=0, zorder=0)
-    ax.axvline(0, color=FRACO, lw=1.0, zorder=1)
 
     for _, r in teste.iterrows():
         y = ys[(r["metodo"], r["biblioteca"])]
         cor = cores[r["biblioteca"]]
         dentro = bool(r["ic_na_faixa"])
-        ax.plot([r["ic_baixo"], r["ic_alto"]], [y, y], color=cor, lw=2.6,
-                solid_capstyle="round", alpha=0.95 if dentro else 1.0, zorder=3)
-        ax.plot([r["hl"]], [y], marker="o" if dentro else "D", ms=7.0,
-                color=cor if dentro else FUNDO, mec=cor, mew=2.0, zorder=4)
+        ax.plot([r["ic_baixo"], r["ic_alto"]], [y, y], color=cor, lw=3.0,
+                solid_capstyle="round", zorder=3)
+        ax.plot([r["hl"]], [y], marker="o" if dentro else "D", ms=9.0,
+                color=cor if dentro else FUNDO, mec=cor, mew=2.4, zorder=4)
 
     ax.set_xlim(-limite, limite)
     ax.set_ylim(fim + 0.5, 1.05)
     ax.set_yticks([p for p, _ in rotulos])
-    ax.set_yticklabels([m for _, m in rotulos], fontsize=13, color=TINTA)
+    ax.set_yticklabels([m for _, m in rotulos], fontsize=16, color=TINTA)
     ax.set_xlabel(f"diferenca de {erro.upper()} (mlquantify $-$ outra biblioteca)",
-                  fontsize=13.5, color=TINTA, labelpad=10)
+                  fontsize=17, color=TINTA, labelpad=12)
 
-    # o que cada lado quer dizer, sem paragrafo
     ax.annotate("$\\leftarrow$ mlquantify erra menos", xy=(-limite * 0.97, 0.72),
-                fontsize=13, color=FRACO, ha="left", va="center")
+                fontsize=15, color=FRACO, ha="left", va="center",
+                bbox=dict(facecolor=FUNDO, edgecolor="none", pad=2))
     ax.annotate("erra mais $\\rightarrow$", xy=(limite * 0.97, 0.72),
-                fontsize=13, color=FRACO, ha="right", va="center")
-    leg_libs = _legenda_bibliotecas(fig, ax, cores, libs)
-    ax.add_artist(leg_libs)
+                fontsize=15, color=FRACO, ha="right", va="center",
+                bbox=dict(facecolor=FUNDO, edgecolor="none", pad=2))
 
-    # Como ler, em palavras e fora do desenho: o leitor olha a chave uma vez
-    # e volta para a figura.
-    from matplotlib.patches import Patch
-
-    chave = [
-        Line2D([], [], color=TINTA, lw=0, marker="o", ms=8,
-               label="ponto: a diferenca tipica"),
-        Line2D([], [], color=TINTA, lw=3.0, marker=None,
-               label="barra: onde essa diferenca cai em 95% das vezes"),
-        Line2D([], [], color=TINTA, lw=0, marker="D", ms=8, mfc=FUNDO,
-               mew=2.0, label="vazado: a barra escapa da faixa"),
-        Patch(facecolor="#4a9e7f", alpha=0.18, lw=0,
-              label=f"faixa verde: diferenca menor que {margem:g}, sem efeito pratico"),
+    # Uma legenda so, em duas linhas: as bibliotecas em cima, a chave do
+    # desenho embaixo. Rotulos curtos; a explicacao vai na legenda do texto.
+    chaves = [
+        Line2D([], [], color=TINTA, lw=0, marker="o", ms=10,
+               label="dentro da faixa"),
+        Line2D([], [], color=TINTA, lw=0, marker="D", ms=10, mfc=FUNDO,
+               mew=2.4, label="fora da faixa"),
+        Line2D([], [], color=TINTA, lw=3.0, label="IC de 95%"),
+        Line2D([], [], color=VERDE, lw=1.8, ls=(0, (5, 4)),
+               label=f"faixa $\\pm${margem:g}"),
     ]
-    # presa ao eixo, logo abaixo do rotulo: encostada na figura, nao no rodape
-    desce = -0.9 / (0.42 * len(ordem) + 2.4)
-    leg_chave = ax.legend(handles=chave, loc="upper center",
-                          bbox_to_anchor=(0.5, desce), frameon=False,
-                          fontsize=12.5, ncols=2, handletextpad=0.6,
-                          columnspacing=2.4, labelspacing=0.5)
-    return _salvar(fig, destino, extras=[leg_libs, leg_chave])
+    marcas = [Line2D([], [], color=cores[l], lw=0, marker="o", ms=11, label=l)
+              for l in libs]
+    vazio = Line2D([], [], lw=0, label=" ")
+    colunas = max(len(marcas), len(chaves))
+    marcas += [vazio] * (colunas - len(marcas))
+    chaves += [vazio] * (colunas - len(chaves))
+    # a legenda do matplotlib preenche coluna a coluna: intercalar as duas
+    # listas deixa as bibliotecas na primeira linha e a chave na segunda
+    itens = [h for par in zip(marcas, chaves) for h in par]
+    leg = ax.legend(handles=itens, loc="lower left", bbox_to_anchor=(0, 1.0),
+                    frameon=False, fontsize=15, ncols=colunas,
+                    handletextpad=0.5, columnspacing=1.8, labelspacing=0.5)
+    return _salvar(fig, destino, extras=[leg])
 
 
 def figura_custo(tabela: pd.DataFrame, titulo: str, destino: Path) -> str:
