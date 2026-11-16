@@ -61,6 +61,11 @@ As variantes por biblioteca saem na orientacao padrao. Para deita-las
 tambem, basta acrescentar `deitado=True` na funcao `variantes()` do
 `painel_bibliotecas.py`. Para nao gerar nenhuma delas, `--sem-variantes`.
 
+Em **`mse/`** estao as duas figuras que dependem da medida de erro -- a 01 e
+a 02 -- refeitas em MSE, com a margem de equivalencia reescolhida. O README
+de la explica de onde sai o numero. As figuras de custo nao estao repetidas
+ali porque nao dependem da medida de erro.
+
 ## 01 -- equivalencia do erro (TOST com Wilcoxon)
 
 Uma linha por par metodo x biblioteca. O ponto e a diferenca mediana de MAE
