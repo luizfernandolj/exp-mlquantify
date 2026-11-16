@@ -5,7 +5,11 @@ import io
 BASE = "C:/Users/luiz_/OneDrive/Codigos/exp-mlquantify/"
 SAIDA = BASE + "figuras/tcc/apendice-conjuntos.tex"
 
-#: De onde veio cada conjunto, no nome usado no capitulo de metodo.
+#: Marca da coluna de multiclasse, com simbolo em vez de letra.
+MARCA = {True: r"$\checkmark$", False: r"$\times$"}
+
+#: De onde veio cada conjunto, no nome usado no capitulo de metodo. Fica
+#: registrado aqui ainda que a tabela nao traga mais a coluna de origem.
 ORIGENS = {
     "datasets_isa": "Maletzke",
     "datasets_jp/schumacher": "Schumacher",
@@ -25,7 +29,7 @@ CABECALHO = r"""%\renewcommand{\appendixname}{Anexo} %trocar Apendice por Anexo
 Os 132 conjuntos de dados que restaram após os critérios de seleção da
 Seção~\ref{subsec:etapa_dados} são listados na Tabela~\ref{tab:ap_conjuntos}. De cada um
 são informados o número de atributos, o número de instâncias, o número de classes, a
-razão de desbalanceamento e a origem.
+razão de desbalanceamento e a indicação de problema multiclasse.
 
 O símbolo $n$ corresponde ao total de instâncias do conjunto, antes da divisão entre
 treinamento e teste descrita na Seção~\ref{subsec:etapa_avaliacao}. O símbolo $k$
@@ -36,16 +40,16 @@ aparecem com os binários primeiro e, dentro de cada grupo, em ordem alfabética
 
 \footnotesize
 \setlength{\tabcolsep}{4pt}
-\begin{longtable}{lrrrrl}
+\begin{longtable}{lrrrrc}
     \caption{Conjuntos de dados utilizados na avaliação experimental.}
     \label{tab:ap_conjuntos}\\
     \hline
-    \textbf{Conjunto} & \textbf{Atrib.} & \textbf{$n$} & \textbf{$k$} & \textbf{Desbal.} & \textbf{Origem} \\
+    \textbf{Conjunto} & \textbf{Atrib.} & \textbf{$n$} & \textbf{$k$} & \textbf{Desbal.} & \textbf{Multi.} \\
     \hline
     \endfirsthead
     \caption[]{Conjuntos de dados utilizados na avaliação experimental (continuação).}\\
     \hline
-    \textbf{Conjunto} & \textbf{Atrib.} & \textbf{$n$} & \textbf{$k$} & \textbf{Desbal.} & \textbf{Origem} \\
+    \textbf{Conjunto} & \textbf{Atrib.} & \textbf{$n$} & \textbf{$k$} & \textbf{Desbal.} & \textbf{Multi.} \\
     \hline
     \endhead
     \hline
@@ -90,7 +94,7 @@ for l in sel:
         milhar(l["n_instancias"]),
         l["n_classes"],
         virgula(l["razao_desbalanceamento"]),
-        ORIGENS.get(l["origem"], l["origem"]),
+        MARCA[int(float(l["n_classes"])) > 2],
     ]) + r" \\")
 
 io.open(SAIDA, "w", encoding="utf-8", newline="\n").write(
