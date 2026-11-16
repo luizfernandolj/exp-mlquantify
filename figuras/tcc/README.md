@@ -15,6 +15,7 @@ python figuras/tcc/gerar.py
 | `q2-fases.csv` | a tabela de razão mediana por fase |
 | `secoes-q1-q2.tex` | o texto das duas seções e das considerações finais |
 | `conclusoes.tex` | o capítulo de conclusões e trabalhos futuros |
+| `resumo.tex` | o resumo e as palavras-chave |
 
 ## Por que os números diferem dos do painel
 
