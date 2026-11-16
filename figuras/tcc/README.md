@@ -14,6 +14,7 @@ python figuras/tcc/gerar.py
 | `q2-memoria` | Q2, razão do pico de memória, o maior entre as duas fases |
 | `q2-fases.csv` | a tabela de razão mediana por fase |
 | `secoes-q1-q2.tex` | o texto das duas seções e das considerações finais |
+| `conclusoes.tex` | o capítulo de conclusões e trabalhos futuros |
 
 ## Por que os números diferem dos do painel
 

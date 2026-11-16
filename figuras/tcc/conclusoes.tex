@@ -1,0 +1,69 @@
+\chapter{Conclusões e Trabalhos Futuros}
+\label{cap:conclusao}
+
+Este trabalho apresentou a \texttt{mlquantify}, uma biblioteca de quantificação em Python
+construída sobre a interface do \textit{scikit-learn}. A motivação veio da dispersão das
+implementações disponíveis, que obriga o usuário a adaptar dados e métodos ao formato de
+cada pacote.
+
+A biblioteca reúne 45 métodos sob uma interface única. A arquitetura combina
+\textit{mixins} e \textit{tags}, o que acomoda exigências distintas sem multiplicar
+classes base, e a decomposição multiclasse alcança 19 desses métodos de forma automática.
+Nove deles são composições do \textit{framework} unificado, em que representação, função
+de perda e solucionador são escolhidos de maneira independente. Sete métodos não estão
+disponíveis em nenhuma das bibliotecas de referência, e apenas o PACC delas ficou sem
+implementação direta.
+
+Além dos métodos, o pacote traz quatro protocolos de avaliação, busca de hiperparâmetros
+guiada pelo erro de quantificação e uma função que executa divisão, treinamento,
+amostragem e cálculo de métricas em uma chamada. A documentação é gerada a partir do
+próprio código e acompanha 24 exemplos executáveis, e o conjunto de testes reúne 220
+funções executadas a cada alteração do repositório em cinco versões do Python.
+
+A avaliação experimental comparou a biblioteca proposta com a \verb'QuaPy', a
+\verb'QuantificationLib' e a \verb'qunfold' em 28 métodos e 132 conjuntos de dados, no
+total de 39 pares de método e biblioteca, sempre sobre as mesmas amostras.
+
+Quanto ao erro, o teste de equivalência colocou 38 dos 39 pares com o intervalo de
+confiança dentro da margem de um ponto percentual de prevalência. Em 28 deles não há
+diferença detectável, e nos 10 restantes a diferença é sistemática e irrelevante. A
+exceção é o MS2 contra a \verb'QuaPy', favorável à biblioteca proposta e explicada pelo
+conjunto de limiares candidatos de cada implementação. O resultado demonstra
+equivalência, afirmação mais forte que a simples ausência de diferença.
+
+Quanto ao custo, a razão mediana ficou em $0{,}967$ no tempo e em $0{,}816$ na memória. A
+vantagem em memória é ampla, com 32 dos 39 pares abaixo da igualdade. Em tempo há
+equilíbrio, com perdas concentradas na contagem ajustada da \verb'QuantificationLib',
+que resolve o ajuste em forma fechada, e ganhos nos métodos multiclasse de casamento de
+distribuição, onde a \verb'qunfold' recorre a otimização numérica a cada estimativa.
+
+Esses resultados sustentam o objetivo do trabalho. A biblioteca entrega a cobertura mais
+ampla de métodos entre as quatro comparadas, com erro equivalente ao das implementações
+de referência e custo da mesma ordem de grandeza, sob uma interface que dispensa
+adaptação de dados e de métodos.
+
+Algumas limitações delimitam o alcance dessas conclusões. O classificador base foi o
+mesmo em toda a comparação, escolha que isola o quantificador e deixa em aberto o efeito
+do modelo subjacente. Os hiperparâmetros foram os padrões de cada biblioteca, de modo que
+o resultado descreve o uso sem ajuste. A margem de equivalência está na unidade da
+prevalência e vale para o AE, o que exige nova escolha de margem para outras medidas de
+erro. As medidas de custo vieram de uma única máquina, em processo único, e descrevem
+razões entre bibliotecas em vez de tempos absolutos. Por fim, os métodos baseados em
+máquinas de vetores de suporte e em redes neurais ficaram fora da comparação.
+
+Como continuidade, cinco frentes se destacam. A primeira é expor a varredura exata dos
+escores na família de limiares, hoje fixada em uma grade de 101 pontos, única origem de
+divergência fora da margem de equivalência. A segunda é adotar solução fechada nos
+métodos de contagem ajustada, onde está concentrada a desvantagem de tempo.
+
+A terceira frente é a medida do esforço de uso, prevista no método e deixada para
+avaliação posterior, com a contagem de linhas de código e de configurações manuais
+necessárias para conduzir um mesmo experimento em cada biblioteca. A quarta é ampliar a
+comparação para outros classificadores base e para cenários com ajuste de
+hiperparâmetros, o que aproximaria a avaliação do uso em pesquisa. A quinta é incorporar
+à comparação os métodos baseados em máquinas de vetores de suporte e em redes neurais,
+já implementados na biblioteca.
+
+A \texttt{mlquantify} está publicada no PyPI e o repositório reúne o código, a
+documentação e os \textit{scripts} dos experimentos, de modo que os resultados deste
+trabalho podem ser reproduzidos e estendidos.
