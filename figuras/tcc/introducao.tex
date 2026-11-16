@@ -16,7 +16,7 @@ que ainda não viu. A qualidade do resultado costuma ser medida pelo acerto dess
 atribuições individuais, e é sobre essa medida que a maior parte dos algoritmos é
 otimizada.
 
-Diversas aplicações, porém, formulam a pergunta sobre o conjunto inteiro. Um órgão de
+Contudo, diversas aplicações formulam a pergunta sobre o conjunto inteiro. Um órgão de
 saúde que acompanha uma epidemia precisa estimar a fração da população infectada para
 dimensionar leitos e campanhas, de modo que o diagnóstico de cada paciente funciona como
 etapa intermediária. De forma semelhante, uma empresa que monitora a recepção de um
@@ -25,16 +25,17 @@ mudança, sem que a leitura de cada comentário seja necessária. Em situações
 o resultado procurado é a proporção de cada classe dentro do grupo observado.
 
 A maneira mais direta de obter essa proporção consiste em classificar cada elemento do
-grupo e contar os rótulos atribuídos. O procedimento depende de uma suposição que
-acompanha o treinamento de qualquer classificador, a de que os dados usados no
-aprendizado e os dados encontrados em uso venham da mesma distribuição, hipótese
-conhecida como independente e identicamente distribuída. As aplicações descritas
-costumam violar essa suposição, uma vez que a proporção de infectados se altera ao longo
-de uma epidemia e a de menções negativas se altera após uma atualização do produto.
+grupo e contar os rótulos atribuídos. Esse procedimento depende de uma suposição presente no
+treinamento de qualquer classificador. Os dados usados no aprendizado e os dados
+encontrados em uso devem vir da mesma distribuição, hipótese conhecida como
+independente e identicamente distribuída. Ocorre que as aplicações descritas costumam
+violar essa suposição, uma vez que a proporção de infectados se altera ao longo de uma
+epidemia e a de menções negativas se altera após uma atualização do produto.
 
 Quando a proporção se desloca dessa maneira, o classificador passa a errar de forma
-sistemática na mesma direção e os erros deixam de se compensar na contagem. A estimativa
-obtida carrega então um viés que aumenta conforme o deslocamento se acentua. Em resposta
+sistemática na mesma direção e os erros deixam de se compensar na contagem. Como
+resultado, a estimativa obtida carrega um viés que aumenta conforme o
+deslocamento se acentua. Em resposta
 a essa limitação surgiu a quantificação, cujos métodos estimam a proporção de cada
 classe de forma direta e aplicam correções baseadas nos erros conhecidos do
 classificador \cite{forman2005}. Desde a formulação inicial da tarefa, a área acumulou
