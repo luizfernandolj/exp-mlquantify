@@ -513,6 +513,14 @@ VERDE = "#2f7a5a"
 FUNDO = "#ffffff"
 
 
+def _virgula(ax, eixo: str) -> None:
+    """Separador decimal em virgula, como manda o texto em portugues."""
+    from matplotlib.ticker import FuncFormatter
+
+    formatador = FuncFormatter(lambda v, _: f"{v:g}".replace(".", ","))
+    (ax.yaxis if eixo == "y" else ax.xaxis).set_major_formatter(formatador)
+
+
 def _estilo(ax, *, fonte=13):
     ax.set_facecolor(FUNDO)
     ax.tick_params(colors=TINTA, labelsize=fonte, length=0)
@@ -692,7 +700,7 @@ def figura_equivalencia(teste: pd.DataFrame, margem: float, erro: str,
 
     posicoes = [p for p, _ in rotulos]
     nomes = [m for _, m in rotulos]
-    rotulo_valor = (f"diferenca de {erro.upper()} "
+    rotulo_valor = (f"diferença de {erro.upper()} "
                     f"(mlquantify $-$ outra biblioteca)")
     if deitado:
         ax.set_ylim(-limite, limite)
@@ -701,6 +709,7 @@ def figura_equivalencia(teste: pd.DataFrame, margem: float, erro: str,
         ax.set_xticks(posicoes)
         ax.set_xticklabels(nomes, fontsize=14, color=TINTA, rotation=90)
         ax.set_ylabel(rotulo_valor, fontsize=17, color=TINTA, labelpad=12)
+        _virgula(ax, "y")
         # x em fracao do eixo e y no valor: o texto fica preso a borda
         # esquerda sem depender da escala
         for texto, alvo, va in (("erra mais $\\uparrow$", limite * 0.97, "top"),
@@ -715,6 +724,7 @@ def figura_equivalencia(teste: pd.DataFrame, margem: float, erro: str,
         ax.set_yticks(posicoes)
         ax.set_yticklabels(nomes, fontsize=16, color=TINTA)
         ax.set_xlabel(rotulo_valor, fontsize=17, color=TINTA, labelpad=12)
+        _virgula(ax, "x")
         ax.annotate("$\\leftarrow$ mlquantify erra menos",
                     xy=(-limite * 0.97, 0.72), fontsize=15, color=FRACO,
                     ha="left", va="center",
@@ -733,7 +743,7 @@ def figura_equivalencia(teste: pd.DataFrame, margem: float, erro: str,
                mew=2.4, label="vazado: IC fora"),
         Line2D([], [], color=TINTA, lw=3.0, label="IC de 95%"),
         Line2D([], [], color=VERDE, lw=1.8, ls=(0, (5, 4)),
-               label=rf"faixa $\pm${margem:g}"),
+               label="faixa $\\pm$" + f"{margem:g}".replace(".", ",")),
     ]
     legendas = _legenda_em_duas_linhas(
         fig, ax, _marcadores_de(cores, formas, libs), chaves)
@@ -846,17 +856,17 @@ def figura_bland_altman(dif: pd.DataFrame, teste: pd.DataFrame, margem: float,
 
     for eixo in eixos[-1]:
         if eixo.get_visible():
-            eixo.set_xlabel(f"nivel do {erro.upper()}: media das duas",
+            eixo.set_xlabel(f"nível do {erro.upper()}, média das duas",
                             fontsize=13, color=TINTA, labelpad=8)
     for linha in eixos:
-        linha[0].set_ylabel(f"diferenca de {erro.upper()}\n"
+        linha[0].set_ylabel(f"diferença de {erro.upper()}\n"
                             f"(mlquantify $-$ outra)",
                             fontsize=13, color=TINTA, labelpad=8)
 
     chaves = [
         Line2D([], [], color=TINTA, lw=0, marker="o", ms=7, mfc="none",
                mew=1.2, label="um conjunto de dados"),
-        Line2D([], [], color=TINTA, lw=2.0, label="diferenca mediana"),
+        Line2D([], [], color=TINTA, lw=2.0, label="diferença mediana"),
         Line2D([], [], color=TINTA, lw=1.4, ls=(0, (5, 4)),
                label="95% centrais dos conjuntos"),
         Line2D([], [], color=VERDE, lw=6, alpha=0.3,
@@ -990,7 +1000,7 @@ def figura_perfil(pares: pd.DataFrame, coluna: str, destino: Path) -> str:
                       xycoords="axes fraction", fontsize=11.5, color=FRACO,
                       ha="right", va="bottom",
                       bbox=dict(facecolor=FUNDO, edgecolor="none", pad=2))
-        eixo.set_xlabel("fator $\\tau$ em relacao a mais barata",
+        eixo.set_xlabel("fator $\\tau$ em relação à mais barata",
                         fontsize=13, color=TINTA, labelpad=8)
 
     marcas = [2.0 ** e for e in range(0, 13) if 2.0 ** e <= limite]
@@ -1003,7 +1013,7 @@ def figura_perfil(pares: pd.DataFrame, coluna: str, destino: Path) -> str:
     eixos[0][0].set_yticks([0, 0.25, 0.5, 0.75, 1.0])
     eixos[0][0].set_yticklabels(["0", "25%", "50%", "75%", "100%"],
                                 fontsize=12.5)
-    eixos[0][0].set_ylabel("fracao dos problemas", fontsize=13, color=TINTA,
+    eixos[0][0].set_ylabel("fração dos problemas", fontsize=13, color=TINTA,
                            labelpad=8)
 
     chaves = [Line2D([], [], color=cores[l], lw=2.6, ls=TRACOS.get(l, "-"),
@@ -1330,7 +1340,7 @@ def figura_custo(tabela: pd.DataFrame, titulo: str, destino: Path,
                     for m in marcas]
     posicoes = [p for p, _ in rotulos]
     nomes = [m for _, m in rotulos]
-    rotulo_valor = f"{titulo} da mlquantify, em multiplos da outra biblioteca"
+    rotulo_valor = f"{titulo} da mlquantify, em múltiplos da outra biblioteca"
 
     if deitado:
         ax.yaxis.set_major_locator(FixedLocator(marcas))

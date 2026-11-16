@@ -1,0 +1,144 @@
+\section{\texorpdfstring{\textbf{Q1}}{Q1} - A biblioteca proposta apresenta erro de quantificação equivalente ao das bibliotecas de referência para um mesmo método?}
+\label{subsec:res_q1}
+
+A comparação reúne 28 métodos e 142 conjuntos de dados, distribuídos em 39 pares de
+método e biblioteca. Cada par é avaliado sobre os conjuntos concluídos nas duas
+implementações, de 108 a 142 conforme o caso.
+
+A equivalência exige um teste próprio. A ausência de diferença significativa indica
+apenas falta de evidência, de modo que afirmar igualdade pede a hipótese invertida. Foi
+adotado o TOST sobre os postos sinalizados de Wilcoxon, com margem de $0{,}01$ em AE,
+equivalente a um ponto percentual de prevalência. Abaixo desse valor a diferença não
+altera decisão alguma tomada a partir da estimativa. A unidade de análise é o conjunto de
+dados, com os quatro tamanhos de amostra reunidos pela média, uma vez que medidas do
+mesmo conjunto não são independentes. A diferença central vem do estimador de
+Hodges-Lehmann, acompanhada do intervalo de confiança de 95\% derivado do próprio teste,
+e a multiplicidade dos 39 pares é corrigida por Holm.
+
+A Figura~\ref{fig:res_q1} apresenta o resultado. Cada linha traz um método contra uma
+biblioteca de referência. O ponto marca a diferença mediana de AE entre a
+\texttt{mlquantify} e a referência, a barra cobre o intervalo de confiança e as linhas
+tracejadas delimitam a margem. O marcador cheio identifica o intervalo contido na faixa,
+situação em que a compatibilidade está demonstrada. A forma do marcador distingue a
+biblioteca.
+
+\begin{figure}[htb]
+    \centering
+    \includegraphics[width=0.86\linewidth]{Imagens/q1-equivalencia.pdf}
+    \caption{Teste de equivalência do erro. O ponto é a diferença mediana de AE e a barra é o intervalo de confiança de 95\%.}
+    \label{fig:res_q1}
+    {\footnotesize Fonte: elaborado pelo autor.}
+\end{figure}
+
+Em 38 dos 39 pares o intervalo cabe na margem. Em 28 deles não há diferença detectável,
+e nos 10 restantes existe diferença sistemática de magnitude irrelevante, sempre abaixo
+de um ponto percentual. A maior delas alcança $0{,}0047$ em AE.
+
+O único par fora da margem é o MS2 contra a \verb'QuaPy', com diferença mediana de
+$-0{,}0077$ e intervalo de $[-0{,}0107,\,-0{,}0045]$, favorável à biblioteca proposta. A
+divergência vem do conjunto de limiares candidatos. A \verb'QuaPy' percorre todos os
+escores distintos obtidos na validação cruzada, enquanto a implementação proposta
+percorre uma grade fixa de 101 pontos, o que desloca a mediana das estimativas tomadas
+sobre esses candidatos.
+
+Em RAE a diferença mediana entre os pares fica em $0{,}0001$ e alcança $0{,}0331$ no
+extremo, com intervalo contendo zero em 22 dos 39 pares. A margem de $0{,}01$ está na
+unidade da prevalência e vale apenas para o AE, razão pela qual o RAE é reportado sem
+veredito de equivalência.
+
+O resultado sustenta a equivalência em erro. As implementações da biblioteca proposta
+reproduzem o comportamento das referências dentro de uma margem sem consequência
+prática, e a única exceção a favorece.
+
+
+\section{\texorpdfstring{\textbf{Q2}}{Q2} - Qual é o custo em tempo e memória da biblioteca proposta no treinamento e na estimação quando comparada com as demais bibliotecas?}
+\label{subsec:res_q2}
+
+O custo é comparado pela razão entre as medidas, tratada em logaritmo de base 2, única
+escala em que o dobro e a metade ficam à mesma distância da igualdade. O ponto é a razão
+mediana entre conjuntos pelo estimador de Hodges-Lehmann e a barra é o intervalo de 95\%,
+na mesma gramática da figura anterior. O tempo soma as fases de treinamento e estimação,
+que são trabalho sequencial. A memória toma o maior pico entre as duas, uma vez que o
+processo libera a primeira fase antes de iniciar a segunda.
+
+A Figura~\ref{fig:res_q2_tempo} traz o tempo. A biblioteca proposta é mais barata com
+intervalo inteiro abaixo de 1 em 18 dos 39 pares e mais cara em 14, com razão mediana de
+$0{,}983$. A vantagem se concentra nos métodos de casamento de distribuição multiclasse,
+com razão de $0{,}017$ no GHDx contra a \verb'qunfold' e de $0{,}023$ no SORD contra a
+\verb'QuantificationLib'. A desvantagem aparece na contagem ajustada da
+\verb'QuantificationLib', com $3{,}6$ no PWKAC, $3{,}4$ no PACC e $3{,}0$ no FM, onde
+aquela biblioteca resolve o ajuste em forma fechada e a proposta recorre a otimização com
+restrição a cada estimativa.
+
+\begin{figure}[htb]
+    \centering
+    \includegraphics[width=0.78\linewidth]{Imagens/q2-tempo.pdf}
+    \caption{Razão do tempo total da \texttt{mlquantify} em relação a cada biblioteca de referência, somadas as fases de treinamento e estimação.}
+    \label{fig:res_q2_tempo}
+    {\footnotesize Fonte: elaborado pelo autor.}
+\end{figure}
+
+A Figura~\ref{fig:res_q2_memoria} traz a memória, cuja vantagem é mais uniforme. A
+biblioteca proposta ocupa menos em 31 dos 39 pares e mais em 6, com razão mediana de
+$0{,}800$. Os extremos vão de $0{,}20$ no GHDx contra a \verb'qunfold' a $1{,}49$ no
+KDEyCS contra a \verb'QuaPy'.
+
+\begin{figure}[htb]
+    \centering
+    \includegraphics[width=0.78\linewidth]{Imagens/q2-memoria.pdf}
+    \caption{Razão do pico de memória da \texttt{mlquantify} em relação a cada biblioteca de referência, tomado o maior valor entre as duas fases.}
+    \label{fig:res_q2_memoria}
+    {\footnotesize Fonte: elaborado pelo autor.}
+\end{figure}
+
+A Tabela~\ref{tab:res_q2_fases} separa as fases e mostra comportamentos distintos. Contra
+a \verb'QuaPy' e a \verb'QuantificationLib' o treinamento da biblioteca proposta é
+ligeiramente mais barato e a estimação é ligeiramente mais cara, com razões próximas da
+igualdade nas quatro medidas. Contra a \verb'qunfold' a diferença muda de ordem de
+grandeza, com $0{,}018$ no tempo de estimação, efeito do otimizador numérico empregado
+por aquela biblioteca em cada estimativa.
+
+\begin{table}[htb]
+    \centering
+    \caption{Razão mediana de custo da \texttt{mlquantify} em relação a cada biblioteca de referência, por fase. Valores abaixo de 1 indicam custo menor.}
+    \label{tab:res_q2_fases}
+    \footnotesize
+    \renewcommand{\arraystretch}{1.25}
+    \begin{tabular}{lccc}
+        \hline
+        \textbf{Medida} & \verb'QuantificationLib' & \verb'QuaPy' & \verb'qunfold' \\
+        \hline
+        Tempo de treinamento   & 0,915 & 0,972 & 1,075 \\
+        Tempo de estimação     & 1,048 & 1,078 & 0,018 \\
+        Memória no treinamento & 0,928 & 0,795 & 0,998 \\
+        Memória na estimação   & 0,744 & 0,903 & 0,376 \\
+        \hline
+    \end{tabular}
+
+    \vspace{2pt}
+    {\footnotesize Fonte: elaborado pelo autor.}
+\end{table}
+
+O custo da biblioteca proposta fica na mesma ordem de grandeza das referências, com
+vantagem clara em memória e equilíbrio em tempo. As perdas se concentram em métodos cuja
+formulação admite solução fechada, e os ganhos nos métodos multiclasse de casamento de
+distribuição.
+
+
+\section{Considerações Finais}
+\label{sec:consideracoes_finais_res}
+
+Neste capítulo, foi apresentada a \texttt{mlquantify} e os resultados da comparação com
+as bibliotecas de referência. A arquitetura reúne os métodos sob uma interface única, com
+\textit{mixins} e \textit{tags} que acomodam exigências distintas, decomposição
+multiclasse automática e composição explícita de representação, perda e solucionador.
+
+A avaliação experimental respondeu às duas questões formuladas. Em erro, 38 dos 39 pares
+de método e biblioteca apresentam intervalo de confiança contido na margem de um ponto
+percentual de prevalência, e o único par fora dela favorece a biblioteca proposta. Em
+custo, a razão mediana fica em $0{,}983$ no tempo e em $0{,}800$ na memória, com ganhos
+nos métodos multiclasse de casamento de distribuição e perdas nos métodos de contagem
+ajustada que a \verb'QuantificationLib' resolve em forma fechada.
+
+No próximo capítulo, são discutidas as limitações deste trabalho e as possibilidades de
+continuidade.
