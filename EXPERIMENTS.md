@@ -2333,6 +2333,235 @@ experimento:
 * o `solve_hd` da qlib nao confere o status do cvxpy antes de indexar.
 
 
+### O icamento da ROC: o que rendeu, medido
+
+A familia de limiar da mlquantify 0.5.1 recalculava a curva ROC **a cada
+estimativa**: as taxas saem dos escores de validacao cruzada, que dependem
+so do treino, mas eram refeitas dentro do `predict`. O icamento move esse
+calculo para o `fit`, onde ele pertence. A pergunta desta secao e dupla:
+quanto o custo caiu, e se o resultado continua o mesmo.
+
+**Continua o mesmo.** Teste direto, mesmo `split` e mesmo classificador,
+com o overlay chamado em `score_edges="fixed"` para isolar o icamento da
+mudanca de semantica que o acompanhava: 18 combinacoes (`T50`, `X`, `MAX`,
+`MS`, `MS2`, `TAC` por binario, 3 classes e 5 classes), 25 amostras cada,
+**17 das 18 identicas bit a bit**.
+
+A unica que difere e o `MS` em 5 classes, com `max |dif|` de 9,0e-3 numa
+classe. A causa nao e o cache: a `MS._adjust` da 0.5.1 mantinha **todos** os
+limiares e, nos degenerados, usava a contagem crua --
+`np.where(denom == 0, cc, np.clip((cc - fprs) / safe, 0, 1))` --, enquanto o
+overlay filtra `tprs != fprs` antes de escolher, de modo que a mediana sai
+de um conjunto menor. E defensavel, e e o que a quapy faz com o seu
+`discard`, mas **nao e identidade**, e so aparece quando a ROC tem limiar
+degenerado, comum no um-contra-resto de classe rara. O `MS2` nao e afetado
+porque o filtro proprio dele (`tprs - fprs > 0,25`) ja excluia esses
+limiares.
+
+**Custo.** Execucao `custo-final5` (overlay sobre a 0.5.1, so
+`--libraries mlquantify`, 12 metodos, 133 conjuntos), pareada contra a
+`final-pareado` por (conjunto, metodo, tamanho de amostra): 3 104 pares,
+nenhum orfao. Razao do tempo de estimacao, bruta e corrigida pelo controle:
+
+| metodo | estimacao bruta | corrigida | treino corrigido | memoria |
+| --- | --- | --- | --- | --- |
+| `T50` | 0,575 | **0,449** | 0,708 | 0,78 |
+| `X` | 0,611 | **0,476** | 0,758 | 0,77 |
+| `TAC` | 0,707 | **0,552** | 0,773 | 0,80 |
+| `MAX` | 0,712 | **0,556** | 0,751 | 0,79 |
+| `MS2` | 0,881 | 0,687 | 0,688 | **1,60** |
+| `MS` | 0,931 | 0,726 | 0,843 | **1,67** |
+| `CC` (controle) | 1,298 | 1,013 | 0,965 | -- |
+| `PCC` (controle) | 1,266 | 0,988 | 1,035 | -- |
+
+Leitura: a estimacao dos metodos de limiar cai a cerca de **metade**, e o
+treino **nao sobe** -- o custo movido para o `fit` e menor que o que saiu do
+`predict`, porque a ROC passa a ser calculada uma vez em vez de 400. `MS` e
+`MS2` ganham menos porque nesta execucao a varredura era `"unique"`, que
+custa mais por ajuste, e sao os dois que **sobem em memoria** (1,6x), pelo
+`thresholds_` agora guardado por classe no um-contra-resto. E uma troca
+explicita de memoria por tempo, e so eles a pagam.
+
+Duas ressalvas sobre esses numeros, as duas necessarias:
+
+1. **A correcao pelo controle e um limite superior.** `CC` e `PCC` tem
+   codigo identico nas duas execucoes e ainda assim mediram diferente, o que
+   mostra que o tempo absoluto entre elas nao e comparavel. O fator de
+   correcao, porem, depende de como se agrega: 1,281 pela razao das medias
+   (dominada pelos conjuntos grandes), mas **1,039 pela mediana par a par**.
+   Pela mediana as duas execucoes ficam a 4% uma da outra, e entao o ganho
+   real fica proximo da coluna bruta.
+2. **Os numeros de limiar sao de `score_edges="unique"`.** O padrao voltou
+   depois para `"fixed"`, que e o da 0.5.1; a remedicao exige a maquina em
+   repouso e nao rodou. Com `"fixed"` o icamento e identidade (exceto o `MS`
+   acima) e o ganho tende a ser maior, nao menor, porque a varredura fica
+   mais barata.
+
+Fora da familia de limiar, a mesma execucao carrega outras duas mudancas,
+que **nao** sao o icamento e nao devem ser creditadas a ele: a forma fechada
+do minimo quadrado (`GPACC` 0,090, `GACC` 0,129, `FM` 0,182 -- fator de 5 a
+11) e a reescrita da representacao de histograma (`HDx` 0,432 na estimacao,
+com os 528 pares de erro **identicos**).
+
+
+### Por que a correspondencia entre as bibliotecas nunca chega a 100%
+
+A subsecao anterior auditou a `final-emq`. Esta refaz a conta sobre a
+`final-pareado`, com as quatro bibliotecas, e separa o que e **limitacao das
+outras** do que e **diferenca de formulacao** -- a distincao importa porque
+so a segunda e irredutivel.
+
+#### O fato de partida: tres metodos, e sempre os mesmos tres
+
+Fracao de pares (conjunto x tamanho de amostra) em que o erro da mlquantify
+e **exatamente** igual ao da outra biblioteca:
+
+| | 100% identicos | parcialmente | 0% identicos |
+| --- | --- | --- | --- |
+| quapy | `CC`, `PCC`, `MLPE` | `EMQ` 25%, `X` 2,9%, `GACC` 2,5%, `MS2` 2,2%, `MAX` 2,0% | `EDy`, `DyS`, `EDx`, `HDx`, `MS`, `PACC`, `SMM` |
+| quantificationlib | `CC`, `PCC` | `TAC` 76%, `EMQ` 31% | `EDx`, `PACC`, `HDy8`, `HDx`, `SORD` |
+| qunfold | nenhum | `GACC` 2,1% | todos os demais |
+
+**`CC`, `PCC` e `MLPE` sao exatamente os tres metodos que nao consomem
+predicoes fora da amostra** (o `EMQ` entra neles quando o `max_iter` esta
+alinhado, como a subsecao anterior registra). Todo o resto depende de
+escores de validacao cruzada, e e ai que a correspondencia se perde.
+
+A causa e conhecida e e **limitacao da quapy**: ela nao expoe o
+embaralhamento das dobras (`val_split` inteiro cai em
+`StratifiedKFold(shuffle=False)`), entao o protocolo embaralha as linhas uma
+vez no `split` para compensar. O resultado sao dobras sorteadas
+**equivalentes, nao identicas** -- escores diferentes, TPR/FPR diferentes,
+estimativa diferente, com o mesmo algoritmo. Nao e removivel por parametro.
+
+#### O criterio para separar as duas causas
+
+Dobras diferentes produzem **ruido sem vies**; formulacao diferente produz
+**deslocamento enviesado**. O painel de equivalencia
+(`painel_bibliotecas.py`) mostra os dois regimes lado a lado:
+
+* **ruido**: `KDEyHD`, `KDEyCS`, `EDy`, `SMM`, `X` contra a quapy --
+  diferenca mediana +0,0000 e veredito "compativel", com os 95% centrais
+  dos conjuntos espalhados por +-0,01 a +-0,05;
+* **vies**: `T50` -0,0038, `MS2` -0,0077 e `HDx` -0,0047 contra a quapy;
+  `PWKAC` +0,0047 e `HDx` +0,0010 contra a quantificationlib.
+
+So o segundo grupo pede explicacao de metodo. O primeiro e o piso de ruido
+do protocolo, e encolhe com o numero de conjuntos, nao com o conserto de
+nenhuma biblioteca.
+
+#### Familia de limiar contra a quapy: o conjunto de candidatos
+
+A quapy varre `np.unique(decision_scores)` em `_threshold_optim.py` -- um
+candidato por escore distinto da validacao cruzada, milhares deles. A
+mlquantify, com `score_edges="fixed"`, varre `np.linspace(0, 1, 101)`.
+Mesma politica de escolha, listas de candidatos completamente diferentes. A
+execucao `sens-limiar`, acima, ja mede o tamanho disso: adotar a varredura
+exata derruba a distancia ate a quapy em fator de 8 no `MS` e pela metade no
+`T50`, e **nao mexe** no `MAX`.
+
+Essa ordem e a assinatura da causa, e e o que permite afirma-la: o `T50`
+procura o limiar cujo TPR chega mais perto de 0,5, e varrendo os escores
+observados quase sempre existe um ponto com TPR ~ 0,5, enquanto numa grade
+de 101 pontos raramente existe; o `MS` tira a mediana das estimativas
+**sobre os candidatos**, de modo que mudar quantos candidatos existem muda a
+mediana direto; `MAX` e `X` procuram um extremo da curva ROC, de otimo
+largo, que a grade aproxima bem.
+
+O residuo de ~0,003 que sobra tem duas partes: os pontos degenerados, que a
+quapy descarta (`tpr - fpr == 0`) antes de a politica ver os candidatos e a
+0.5.1 nao descartava, ja alinhado pelo overlay; e as dobras.
+
+Isto **nao e limitacao de nenhuma das duas**: sao duas leituras do mesmo
+algoritmo. Vale registrar a consequencia de manter o padrao `"fixed"`: a
+mlquantify fica identica a 0.5.1 e **mais distante da quapy**. As duas
+coisas sao verdade ao mesmo tempo.
+
+#### quantificationlib: quatro causas distintas
+
+| metodo | causa | de quem |
+| --- | --- | --- |
+| `TAC` | definicao de AC multiclasse | formulacao |
+| `HDx` | objetivo da otimizacao | formulacao |
+| `HDy8` | `n_bins` unico em vez de varredura | limitacao da qlib |
+| `PWKAC` | taxas por reinsercao | limitacao da qlib |
+| `EMQ` | tolerancia de convergencia | nenhuma das duas |
+
+**`TAC` e o caso mais limpo:** 99,1% de identidade bit a bit nos conjuntos
+binarios (n=432) e **0%** nos multiclasse (n=128, `|dif|` 0,0300). O `AC` da
+qlib e a forma fechada de Forman no binario e bate; no multiclasse ela troca
+para inversao da matriz de confusao enquanto a mlquantify faz
+um-contra-todos. Todo o +0,0046 do `TAC` vem dai, e nao e defeito de nenhuma
+das duas: sao duas definicoes de "AC multiclasse".
+
+**`HDx` nao envolve classificador nenhum**, entao aqui nao cabe alegar
+dobras. O `DFX` da qlib concatena os histogramas de todos os atributos e
+resolve **uma otimizacao conjunta** sobre o simplex; a mlquantify estima por
+atributo e agrega **pela mediana entre atributos**, que e o que
+Gonzalez-Castro et al. (2013) descrevem. Mesmo nome, objetivos diferentes.
+
+#### `PWK`: nenhuma das duas segue o artigo
+
+Achado de literatura, nao so de implementacao. O artigo de Barranquero,
+Gonzalez, Diez e del Coz (2013), *Pattern Recognition* 46(2):472-482, esta
+atras de paywall, mas a revisao dos proprios autores (Gonzalez, Castano,
+Chawla, del Coz, *A Review on Quantification Learning*, secao 7.2) e
+inequivoca: o metodo e **contagem ajustada**, e as taxas se estimam por
+**leave-one-out**, justamente porque no kNN a matriz de distancias sai uma
+vez so e serve para todas as dobras.
+
+| aspecto | artigo | quantificationlib | mlquantify 0.5.1 |
+| --- | --- | --- | --- |
+| forma | AC | **AC** | `class PWK(CC)`: contagem pura |
+| TPR/FPR | leave-one-out | reinsercao | 5 dobras (fora da amostra, mas nao LOO) |
+| pesos | (42) e (43) | (43) | (42) com `alpha`, exposto |
+
+A reinsercao da qlib e literal -- `predictions_train =
+self.knn_estimator_.predict(X)` com `X` sendo o proprio treino, em
+`multiclass/knn.py`. Num kNN e o pior caso de resubstituicao, porque o ponto
+consultado e vizinho de si mesmo a distancia zero, e com o peso do `PWK`,
+se ele for da minoria, esse voto vale quatro dos outros.
+
+Medido em 12 conjuntos binarios reais, contra a verdade (o TPR/FPR do
+classificador ajustado, na particao de teste):
+
+| estimativa | mais perto em | desvio medio |
+| --- | --- | --- |
+| leave-one-out | **6 de 12** | **0,0769** |
+| reinsercao (qlib) | 5 de 12 | 0,0903 |
+| 5 dobras (mlquantify) | 1 de 12 | 0,0877 |
+
+O LOO ganha, como o artigo preve, mas por pouco na media -- e a media
+esconde o que importa. A reinsercao e otima nos conjuntos faceis e **desaba
+nos dificeis**, sempre para o lado otimista: em `haberman` o TPR verdadeiro
+e 0,415 e ela estima 0,675; em `sonar`, 0,729 contra 0,857. Sao exatamente
+os conjuntos em que o ajuste tem trabalho a fazer. E o vies que se espera de
+resubstituicao, e explica o perfil ja anotado no `registry.py` -- o erro da
+qlib caindo com o tamanho da amostra enquanto o da mlquantify fica plano --,
+agora com a causa.
+
+Os pesos das duas formulas sao **exatamente proporcionais no binario**
+(conferido numericamente), que e o caso de que o artigo trata, entao o voto
+ponderado e identico; com 3 classes divergem, e as duas sao extrapolacoes
+para fora do que o artigo define.
+
+#### Resumo: o que e limitacao das outras bibliotecas
+
+| limitacao | efeito medido |
+| --- | --- |
+| quapy nao expoe o embaralhamento das dobras | piso de ruido em **todo** metodo que usa validacao cruzada |
+| qlib estima as taxas do `PWK` por reinsercao | vies otimista nos conjuntos dificeis (0,675 contra 0,415 em `haberman`) |
+| qlib fixa `n_bins=8` no `HDy8` em vez de varrer | diferenca sistematica detectavel (+0,0004), dentro da margem, mas com os 95% centrais indo a +0,066 |
+| qlib troca de metodo entre binario e multiclasse no `AC`/`PAC` | `TAC` com 99,1% de identidade no binario e 0% no multiclasse |
+| qunfold compara iteracoes pela norma L2, nao por MAE | residuo de 5,4e-3 no `EMQ`, que cai a 7,5e-6 com `tol=1e-10` |
+| qunfold sorteia o ponto de partida sem semente | nao repete os numeros entre execucoes |
+
+E o que **nao** e limitacao de ninguem, e por isso nunca vai a 100%: as duas
+definicoes de AC multiclasse, os dois objetivos do `HDx`, e os dois
+conjuntos de candidatos da familia de limiar. Sao escolhas de formulacao,
+cada uma defensavel, feitas por bibliotecas diferentes sobre o mesmo nome de
+metodo.
+
 ---
 
 ## 12. Organizacao do codigo
