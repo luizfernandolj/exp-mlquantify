@@ -557,6 +557,19 @@ def _marcadores_de(cores, formas, libs, ms=11):
                    label=l) for l in libs]
 
 
+def variantes(libs) -> list:
+    """(sufixo, argumentos) das versoes extras de uma figura.
+
+    Duas coisas diferentes, que a figura aceita separadamente: a **deitada**
+    troca os eixos, para caber na largura de uma coluna de texto; a **por
+    biblioteca** mostra uma rival de cada vez, em vez de todas sobrepostas.
+    As por biblioteca saem na orientacao padrao; para deita-las tambem,
+    basta acrescentar ``deitado=True`` aqui.
+    """
+    return ([("deitada", {"deitado": True})]
+            + [(lib, {"so_libs": [lib]}) for lib in libs])
+
+
 def _salvar(fig, destino: Path, extras=()) -> str:
     # extras: artistas fora do eixo (legendas presas com add_artist) que o
     # recorte "tight" so inclui se forem citados aqui
@@ -572,14 +585,28 @@ def _salvar(fig, destino: Path, extras=()) -> str:
 
 
 def figura_equivalencia(teste: pd.DataFrame, margem: float, erro: str,
-                        destino: Path) -> str:
-    """Floresta do teste de equivalencia, uma escala so."""
+                        destino: Path, deitado: bool = False,
+                        so_libs: list | None = None) -> str:
+    """Floresta do teste de equivalencia, uma escala so.
+
+    ``deitado`` troca os eixos: por padrao cada metodo e uma linha e o valor
+    corre na horizontal, que e a forma classica da floresta e a que aguenta
+    muitos metodos; deitado, os metodos vao para o eixo x e o valor para o
+    y, que e a forma que cabe na largura de uma coluna de texto.
+
+    ``so_libs`` restringe a uma ou mais bibliotecas rivais, para a figura de
+    cada par em vez de todas sobrepostas.
+    """
     import matplotlib
 
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
     from matplotlib.lines import Line2D
 
+    if so_libs:
+        teste = teste[teste["biblioteca"].isin(so_libs)]
+        if teste.empty:
+            return ""
     cores = _cores_de(teste)
     formas = _marcas_de(teste)
     libs = sorted(teste["biblioteca"].unique())
@@ -593,52 +620,83 @@ def figura_equivalencia(teste: pd.DataFrame, margem: float, erro: str,
                  float(np.nanmax(np.abs(
                      teste[["ic_baixo", "ic_alto"]].to_numpy()))) * 1.06)
 
-    altura = 0.50 * len(ordem) + 2.8
-    fig, ax = plt.subplots(figsize=(10.0, altura), dpi=200)
+    comprimento = 0.50 * len(ordem) + 2.8
+    fig, ax = plt.subplots(dpi=200, figsize=(comprimento, 8.4) if deitado
+                           else (10.0, comprimento))
     fig.patch.set_facecolor(FUNDO)
     _estilo(ax, fonte=16)
+    if deitado:
+        ax.grid(axis="x", visible=False)
+        ax.grid(axis="y", color=GRADE, lw=0.7)
 
-    # Como a faixa ocupa quase toda a largura, quem marca o limite sao as
+    # faixa de equivalencia e linha do zero, no eixo do valor
+    faixa = ax.axhspan if deitado else ax.axvspan
+    linha_valor = ax.axhline if deitado else ax.axvline
+    linha_pos = ax.axvline if deitado else ax.axhline
+    banda_pos = ax.axvspan if deitado else ax.axhspan
+
+    # Como a faixa ocupa quase toda a escala, quem marca o limite sao as
     # duas linhas tracejadas; o preenchimento fica so como fundo.
-    ax.axvspan(-margem, margem, color=VERDE, alpha=0.07, lw=0, zorder=0)
+    faixa(-margem, margem, color=VERDE, alpha=0.07, lw=0, zorder=0)
     for lado in (-margem, margem):
-        ax.axvline(lado, color=VERDE, lw=1.8, ls=(0, (5, 4)), zorder=2)
-    ax.axvline(0, color=FRACO, lw=1.2, zorder=1)
+        linha_valor(lado, color=VERDE, lw=1.8, ls=(0, (5, 4)), zorder=2)
+    linha_valor(0, color=FRACO, lw=1.2, zorder=1)
 
-    # linhas alternadas levam o olho do nome do metodo ate o ponto; a linha
-    # de quem escapa da faixa fica tingida
+    # faixas alternadas levam o olho do nome do metodo ate o ponto; a de
+    # quem escapa da faixa fica tingida
     fora = set(teste.loc[~teste["ic_na_faixa"].astype(bool), "metodo"])
     for i, (p, metodo) in enumerate(rotulos):
         if metodo in fora:
-            ax.axhspan(p - 0.5, p + 0.5, color="#fbeaea", lw=0, zorder=-1)
+            banda_pos(p - 0.5, p + 0.5, color="#fbeaea", lw=0, zorder=-1)
         elif i % 2 == 0:
-            ax.axhspan(p - 0.5, p + 0.5, color="#f4f4f4", lw=0, zorder=-1)
+            banda_pos(p - 0.5, p + 0.5, color="#f4f4f4", lw=0, zorder=-1)
 
     # A forma diz qual biblioteca e o preenchimento diz o veredito, para que
     # nada dependa da cor: impressa em cinza a figura continua separavel.
     for _, r in teste.iterrows():
-        y = ys[(r["metodo"], r["biblioteca"])]
+        p = ys[(r["metodo"], r["biblioteca"])]
         cor = cores[r["biblioteca"]]
         forma = formas[r["biblioteca"]]
         dentro = bool(r["ic_na_faixa"])
-        ax.plot([r["ic_baixo"], r["ic_alto"]], [y, y], color=cor, lw=3.0,
-                solid_capstyle="round", zorder=3)
-        ax.plot([r["hl"]], [y], marker=forma, ms=10.0 if forma != "o" else 9.5,
+        extremos, meio = [r["ic_baixo"], r["ic_alto"]], [r["hl"]]
+        barra = ([p, p], extremos) if deitado else (extremos, [p, p])
+        ponto = ([p], meio) if deitado else (meio, [p])
+        ax.plot(*barra, color=cor, lw=3.0, solid_capstyle="round", zorder=3)
+        ax.plot(*ponto, marker=forma, ms=10.0 if forma != "o" else 9.5,
                 color=cor if dentro else FUNDO, mec=cor, mew=2.4, zorder=4)
 
-    ax.set_xlim(-limite, limite)
-    ax.set_ylim(fim + 0.5, 1.05)
-    ax.set_yticks([p for p, _ in rotulos])
-    ax.set_yticklabels([m for _, m in rotulos], fontsize=16, color=TINTA)
-    ax.set_xlabel(f"diferenca de {erro.upper()} (mlquantify $-$ outra biblioteca)",
-                  fontsize=17, color=TINTA, labelpad=12)
-
-    ax.annotate("$\\leftarrow$ mlquantify erra menos", xy=(-limite * 0.97, 0.72),
-                fontsize=15, color=FRACO, ha="left", va="center",
-                bbox=dict(facecolor=FUNDO, edgecolor="none", pad=2))
-    ax.annotate("erra mais $\\rightarrow$", xy=(limite * 0.97, 0.72),
-                fontsize=15, color=FRACO, ha="right", va="center",
-                bbox=dict(facecolor=FUNDO, edgecolor="none", pad=2))
+    posicoes = [p for p, _ in rotulos]
+    nomes = [m for _, m in rotulos]
+    rotulo_valor = (f"diferenca de {erro.upper()} "
+                    f"(mlquantify $-$ outra biblioteca)")
+    if deitado:
+        ax.set_ylim(-limite, limite)
+        # o primeiro metodo a esquerda: as posicoes descem a partir de zero
+        ax.set_xlim(1.05, fim + 0.5)
+        ax.set_xticks(posicoes)
+        ax.set_xticklabels(nomes, fontsize=14, color=TINTA, rotation=90)
+        ax.set_ylabel(rotulo_valor, fontsize=17, color=TINTA, labelpad=12)
+        # x em fracao do eixo e y no valor: o texto fica preso a borda
+        # esquerda sem depender da escala
+        for texto, alvo, va in (("erra mais $\\uparrow$", limite * 0.97, "top"),
+                                ("$\\downarrow$ mlquantify erra menos",
+                                 -limite * 0.97, "bottom")):
+            ax.annotate(texto, xy=(0.012, alvo), fontsize=15, color=FRACO,
+                        ha="left", va=va, xycoords=ax.get_yaxis_transform(),
+                        bbox=dict(facecolor=FUNDO, edgecolor="none", pad=2))
+    else:
+        ax.set_xlim(-limite, limite)
+        ax.set_ylim(fim + 0.5, 1.05)
+        ax.set_yticks(posicoes)
+        ax.set_yticklabels(nomes, fontsize=16, color=TINTA)
+        ax.set_xlabel(rotulo_valor, fontsize=17, color=TINTA, labelpad=12)
+        ax.annotate("$\\leftarrow$ mlquantify erra menos",
+                    xy=(-limite * 0.97, 0.72), fontsize=15, color=FRACO,
+                    ha="left", va="center",
+                    bbox=dict(facecolor=FUNDO, edgecolor="none", pad=2))
+        ax.annotate("erra mais $\\rightarrow$", xy=(limite * 0.97, 0.72),
+                    fontsize=15, color=FRACO, ha="right", va="center",
+                    bbox=dict(facecolor=FUNDO, edgecolor="none", pad=2))
 
     # Duas legendas empilhadas, as duas ancoradas na margem esquerda: uma so
     # legenda em ncols alinha por coluna e joga a segunda linha para a
@@ -1066,12 +1124,19 @@ def imprimir_ranking(postos: pd.DataFrame, fora: list, n: int,
 
 
 def figura_ranking(ok: pd.DataFrame, pares: pd.DataFrame, medidas: list,
-                   destino: Path, piso: float = 0.95) -> str:
+                   destino: Path, piso: float = 0.95,
+                   deitado: bool = False, so_libs: list | None = None) -> str:
     """Caixas do posto de cada par metodo x biblioteca, uma linha por medida.
 
     A caixa e a distribuicao dos postos entre os conjuntos de dados, e os
     pares vao ordenados pelo posto mediano. A cor e a hachura dizem a
     biblioteca.
+
+    ``deitado`` deita as caixas, o que deixa os nomes dos pares legiveis a
+    esquerda em vez de girados 90 graus. ``so_libs`` mostra so os pares de
+    uma biblioteca -- **o posto continua sendo o do ranking inteiro**, de
+    modo que a figura responde onde os pares dela caem entre todos, e nao
+    como eles se ordenam entre si.
     """
     import matplotlib
 
@@ -1082,8 +1147,15 @@ def figura_ranking(ok: pd.DataFrame, pares: pd.DataFrame, medidas: list,
     painel = []
     for colunas, titulo, juntar in medidas:
         postos, fora, n = postos_dos_pares(ok, pares, colunas, juntar, piso)
-        if postos is not None:
-            painel.append((titulo, postos, n))
+        if postos is None:
+            continue
+        if so_libs:
+            # filtra depois de ordenar: o posto e o do ranking inteiro
+            fica = [c for c in postos.columns if c.split("/")[1] in so_libs]
+            if not fica:
+                continue
+            postos = postos[fica]
+        painel.append((titulo, postos, n))
     if not painel:
         return ""
 
@@ -1092,20 +1164,26 @@ def figura_ranking(ok: pd.DataFrame, pares: pd.DataFrame, medidas: list,
     cores = dict(_cores_de(pd.DataFrame({"biblioteca": libs})),
                  **{MINHA: COR_MINHA})
 
-    largura = max(len(postos.columns) for _, postos, _ in painel)
-    fig, eixos = plt.subplots(len(painel), 1, squeeze=False, dpi=200,
-                              figsize=(max(10.0, 0.26 * largura),
-                                       3.6 * len(painel) + 0.8))
+    quantos = max(len(postos.columns) for _, postos, _ in painel)
+    comprimento = max(7.0, 0.26 * quantos)
+    fig, eixos = plt.subplots(
+        1 if deitado else len(painel), len(painel) if deitado else 1,
+        squeeze=False, dpi=200,
+        figsize=((5.6 * len(painel), comprimento) if deitado
+                 else (comprimento, 3.6 * len(painel) + 0.8)))
     fig.patch.set_facecolor(FUNDO)
 
     for eixo, (titulo, postos, n) in zip(eixos.ravel(), painel):
         ordem = postos.median().sort_values().index.tolist()
         dados = [postos[c].to_numpy() for c in ordem]
         _estilo(eixo, fonte=11)
-        eixo.grid(axis="y", color=GRADE, lw=0.7)
-        eixo.grid(axis="x", visible=False)
+        eixo.grid(axis="y", visible=deitado, color=GRADE, lw=0.7)
+        eixo.grid(axis="x", visible=not deitado, color=GRADE, lw=0.7)
+        if deitado:
+            eixo.grid(axis="x", color=GRADE, lw=0.7)
 
         caixas = eixo.boxplot(dados, patch_artist=True, widths=0.68,
+                              vert=not deitado,
                               flierprops=dict(marker="o", ms=2.0,
                                               mfc=FRACO, mec="none",
                                               alpha=0.6),
@@ -1117,16 +1195,28 @@ def figura_ranking(ok: pd.DataFrame, pares: pd.DataFrame, medidas: list,
             caixa.set(facecolor=cores[lib], alpha=0.85, lw=0.8,
                       edgecolor=TINTA, hatch=HACHURAS.get(lib, ""))
 
-        eixo.set_xticks(range(1, len(ordem) + 1))
-        eixo.set_xticklabels([c.split("/")[0] for c in ordem], rotation=90,
-                             fontsize=9.5, color=TINTA)
-        eixo.set_xlim(0.4, len(ordem) + 0.6)
-        eixo.set_ylim(0.5, len(ordem) + 0.5)
-        eixo.set_ylabel("posto (1 = melhor)", fontsize=12, color=TINTA,
-                        labelpad=6)
+        nomes = [c.split("/")[0] for c in ordem]
+        if deitado:
+            eixo.set_yticks(range(1, len(ordem) + 1))
+            eixo.set_yticklabels(nomes, fontsize=9.5, color=TINTA)
+            # o primeiro colocado no alto
+            eixo.set_ylim(len(ordem) + 0.6, 0.4)
+            eixo.set_xlim(0.5, quantos + 0.5)
+            eixo.set_xlabel("posto (1 = melhor)", fontsize=12, color=TINTA,
+                            labelpad=6)
+        else:
+            eixo.set_xticks(range(1, len(ordem) + 1))
+            eixo.set_xticklabels(nomes, rotation=90, fontsize=9.5,
+                                 color=TINTA)
+            eixo.set_xlim(0.4, len(ordem) + 0.6)
+            eixo.set_ylim(0.5, quantos + 0.5)
+            eixo.set_ylabel("posto (1 = melhor)", fontsize=12, color=TINTA,
+                            labelpad=6)
         eixo.annotate(f"{titulo}  ·  {len(ordem)} pares em {n} conjuntos",
-                      xy=(0.004, 0.965), xycoords="axes fraction",
-                      fontsize=13, color=TINTA, ha="left", va="top",
+                      xy=(0.996 if deitado else 0.004, 0.988 if deitado
+                          else 0.965),
+                      xycoords="axes fraction", fontsize=13, color=TINTA,
+                      ha="right" if deitado else "left", va="top",
                       bbox=dict(facecolor=FUNDO, edgecolor="none", pad=3))
 
     chaves = [Patch(facecolor=cores[l], edgecolor=TINTA, lw=0.8, alpha=0.85,
@@ -1140,8 +1230,13 @@ def figura_ranking(ok: pd.DataFrame, pares: pd.DataFrame, medidas: list,
     return _salvar(fig, destino, extras=[leg])
 
 
-def figura_custo(tabela: pd.DataFrame, titulo: str, destino: Path) -> str:
-    """Razao de custo por par, em escala logaritmica, com IC de 95%."""
+def figura_custo(tabela: pd.DataFrame, titulo: str, destino: Path,
+                 deitado: bool = False, so_libs: list | None = None) -> str:
+    """Razao de custo por par, em escala logaritmica, com IC de 95%.
+
+    ``deitado`` e ``so_libs`` tem o mesmo sentido da figura de equivalencia:
+    trocar os eixos e restringir a uma biblioteca rival.
+    """
     import matplotlib
 
     matplotlib.use("Agg")
@@ -1149,6 +1244,10 @@ def figura_custo(tabela: pd.DataFrame, titulo: str, destino: Path) -> str:
     from matplotlib.lines import Line2D
     from matplotlib.ticker import FixedLocator, NullFormatter
 
+    if so_libs:
+        tabela = tabela[tabela["biblioteca"].isin(so_libs)]
+        if tabela.empty:
+            return ""
     cores = _cores_de(tabela)
     formas = _marcas_de(tabela)
     libs = sorted(tabela["biblioteca"].unique())
@@ -1162,51 +1261,83 @@ def figura_custo(tabela: pd.DataFrame, titulo: str, destino: Path) -> str:
     dir_ = max(float(np.nanmax(tabela["ic_alto"])) * 1.3, 1.6)
 
     # mesma caixa e mesma tipografia da figura de erro
-    fig, ax = plt.subplots(figsize=(10.0, 0.50 * len(ordem) + 2.8), dpi=200)
+    comprimento = 0.50 * len(ordem) + 2.8
+    fig, ax = plt.subplots(dpi=200, figsize=(comprimento, 8.4) if deitado
+                           else (10.0, comprimento))
     fig.patch.set_facecolor(FUNDO)
     _estilo(ax, fonte=16)
-    ax.set_xscale("log", base=2)
+    if deitado:
+        ax.set_yscale("log", base=2)
+        ax.grid(axis="x", visible=False)
+        ax.grid(axis="y", color=GRADE, lw=0.7)
+    else:
+        ax.set_xscale("log", base=2)
 
-    ax.axvspan(esq, 1.0, color=VERDE, alpha=0.07, lw=0, zorder=0)
-    ax.axvline(1.0, color=FRACO, lw=1.6, zorder=1)
+    faixa = ax.axhspan if deitado else ax.axvspan
+    linha_valor = ax.axhline if deitado else ax.axvline
+    banda_pos = ax.axvspan if deitado else ax.axhspan
 
-    # linhas alternadas levam o olho do nome do metodo ate o ponto
+    faixa(esq, 1.0, color=VERDE, alpha=0.07, lw=0, zorder=0)
+    linha_valor(1.0, color=FRACO, lw=1.6, zorder=1)
+
+    # faixas alternadas levam o olho do nome do metodo ate o ponto
     for i, (pos, _) in enumerate(rotulos):
         if i % 2 == 0:
-            ax.axhspan(pos - 0.5, pos + 0.5, color="#f4f4f4", lw=0, zorder=-1)
+            banda_pos(pos - 0.5, pos + 0.5, color="#f4f4f4", lw=0, zorder=-1)
 
     for _, r in tabela.iterrows():
-        y = ys[(r["metodo"], r["biblioteca"])]
+        p = ys[(r["metodo"], r["biblioteca"])]
         cor = cores[r["biblioteca"]]
         # cheio quando o intervalo fica inteiro de um lado de 1, vazado
         # quando cruza: o lado ja esta dito pela posicao
         firme = bool(r["ganha"]) or bool(r["perde"])
+        extremos, meio = [r["ic_baixo"], r["ic_alto"]], [r["razao"]]
+        barra = ([p, p], extremos) if deitado else (extremos, [p, p])
+        ponto = ([p], meio) if deitado else (meio, [p])
         # mesma gramatica da figura de erro: a forma diz a biblioteca
-        ax.plot([r["ic_baixo"], r["ic_alto"]], [y, y], color=cor, lw=3.0,
-                solid_capstyle="round", zorder=3)
-        ax.plot([r["razao"]], [y], marker=formas[r["biblioteca"]], ms=10.0,
+        ax.plot(*barra, color=cor, lw=3.0, solid_capstyle="round", zorder=3)
+        ax.plot(*ponto, marker=formas[r["biblioteca"]], ms=10.0,
                 color=cor if firme else FUNDO, mec=cor, mew=2.4, zorder=4)
 
     marcas = [m for m in (2.0 ** e for e in range(-8, 9))
               if esq <= m <= dir_]
-    rotulos_x = {m: (f"1/{int(round(1 / m))}" if m < 1 else f"{int(round(m))}")
-                 for m in marcas}
-    ax.xaxis.set_major_locator(FixedLocator(marcas))
-    ax.set_xticklabels([rotulos_x[m] for m in marcas], fontsize=16)
-    ax.xaxis.set_minor_formatter(NullFormatter())
-    ax.set_xlim(esq, dir_)
-    ax.set_ylim(fim + 0.5, 1.05)
-    ax.set_yticks([p for p, _ in rotulos])
-    ax.set_yticklabels([m for _, m in rotulos], fontsize=16, color=TINTA)
-    ax.set_xlabel(f"{titulo} da mlquantify, em multiplos da outra biblioteca",
-                  fontsize=17, color=TINTA, labelpad=12)
+    nomes_marcas = [f"1/{int(round(1 / m))}" if m < 1 else f"{int(round(m))}"
+                    for m in marcas]
+    posicoes = [p for p, _ in rotulos]
+    nomes = [m for _, m in rotulos]
+    rotulo_valor = f"{titulo} da mlquantify, em multiplos da outra biblioteca"
 
-    ax.annotate(r"$\leftarrow$ mlquantify mais barata", xy=(esq * 1.04, 0.72),
-                fontsize=15, color=FRACO, ha="left", va="center",
-                bbox=dict(facecolor=FUNDO, edgecolor="none", pad=2))
-    ax.annotate(r"mais cara $\rightarrow$", xy=(dir_ * 0.96, 0.72),
-                fontsize=15, color=FRACO, ha="right", va="center",
-                bbox=dict(facecolor=FUNDO, edgecolor="none", pad=2))
+    if deitado:
+        ax.yaxis.set_major_locator(FixedLocator(marcas))
+        ax.set_yticklabels(nomes_marcas, fontsize=16)
+        ax.yaxis.set_minor_formatter(NullFormatter())
+        ax.set_ylim(esq, dir_)
+        ax.set_xlim(1.05, fim + 0.5)
+        ax.set_xticks(posicoes)
+        ax.set_xticklabels(nomes, fontsize=14, color=TINTA, rotation=90)
+        ax.set_ylabel(rotulo_valor, fontsize=17, color=TINTA, labelpad=12)
+        for texto, alvo, va in ((r"mais cara $\uparrow$", dir_ * 0.96, "top"),
+                                (r"$\downarrow$ mlquantify mais barata",
+                                 esq * 1.04, "bottom")):
+            ax.annotate(texto, xy=(0.012, alvo), fontsize=15, color=FRACO,
+                        ha="left", va=va, xycoords=ax.get_yaxis_transform(),
+                        bbox=dict(facecolor=FUNDO, edgecolor="none", pad=2))
+    else:
+        ax.xaxis.set_major_locator(FixedLocator(marcas))
+        ax.set_xticklabels(nomes_marcas, fontsize=16)
+        ax.xaxis.set_minor_formatter(NullFormatter())
+        ax.set_xlim(esq, dir_)
+        ax.set_ylim(fim + 0.5, 1.05)
+        ax.set_yticks(posicoes)
+        ax.set_yticklabels(nomes, fontsize=16, color=TINTA)
+        ax.set_xlabel(rotulo_valor, fontsize=17, color=TINTA, labelpad=12)
+        ax.annotate(r"$\leftarrow$ mlquantify mais barata",
+                    xy=(esq * 1.04, 0.72), fontsize=15, color=FRACO,
+                    ha="left", va="center",
+                    bbox=dict(facecolor=FUNDO, edgecolor="none", pad=2))
+        ax.annotate(r"mais cara $\rightarrow$", xy=(dir_ * 0.96, 0.72),
+                    fontsize=15, color=FRACO, ha="right", va="center",
+                    bbox=dict(facecolor=FUNDO, edgecolor="none", pad=2))
 
     chaves = [
         Line2D([], [], color=TINTA, lw=0, marker="o", ms=10,
@@ -1565,6 +1696,9 @@ def main() -> int:
                    help="grava tambem o resumo em csv")
     p.add_argument("--erro", default="mae", choices=("mae", "mrae"),
                    help="medida de erro do teste (padrao: mae)")
+    p.add_argument("--sem-variantes", action="store_true",
+                   help="nao gera as versoes deitada e por biblioteca das "
+                        "figuras de equivalencia, razao e ranking")
     p.add_argument("--piso-cobertura", type=float, default=0.95, metavar="F",
                    help="fracao minima de conjuntos que um par metodo x "
                         "biblioteca precisa ter para entrar no ranking "
@@ -1606,6 +1740,13 @@ def main() -> int:
             print(f"\ngrafico: {png}")
             teste.to_csv(destino.with_name(destino.stem + "_equivalencia.csv"),
                          index=False)
+            for sufixo, extra in (() if args.sem_variantes else
+                                  variantes(sorted(teste["biblioteca"]
+                                                   .unique()))):
+                figura_equivalencia(
+                    teste, args.margem, args.erro,
+                    destino.with_name(
+                        f"{destino.stem}_equivalencia_{sufixo}.png"), **extra)
 
             png = destino.with_name(destino.stem + "_concordancia.png")
             dif = diferencas(pares, args.erro)
@@ -1649,6 +1790,13 @@ def main() -> int:
             svg_custo.append((figura_custo(tabela, titulo, png), legenda))
             tabela.to_csv(destino.with_name(f"{destino.stem}_{nome}.csv"),
                           index=False)
+            for sufixo, extra in (() if args.sem_variantes else
+                                  variantes(sorted(tabela["biblioteca"]
+                                                   .unique()))):
+                figura_custo(tabela, titulo,
+                             destino.with_name(
+                                 f"{destino.stem}_{nome}_{sufixo}.png"),
+                             **extra)
             print(f"grafico: {png}")
             imprimir_custo(tabela, titulo)
 
@@ -1696,6 +1844,15 @@ def main() -> int:
                                   args.piso_cobertura)
         if svg_rank:
             print(f"grafico: {png}")
+        if not args.sem_variantes:
+            todas = sorted(ok["biblioteca"].unique())
+            for sufixo, extra in variantes(todas):
+                figura_ranking(ok, pares, medidas,
+                               destino.with_name(
+                                   f"{destino.stem}_ranking_{sufixo}.png"),
+                               args.piso_cobertura, **extra)
+            print(f"variantes: deitada e uma por biblioteca, "
+                  f"em {destino.parent}")
 
     destino.write_text(
         html_painel(resumo, pares, args.run_id, args.custo_run,

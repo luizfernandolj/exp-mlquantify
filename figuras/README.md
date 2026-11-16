@@ -42,6 +42,25 @@ biblioteca nas florestas, o tracejado diz a biblioteca nos perfis, a
 hachura diz a biblioteca no ranking, e o preenchimento do marcador diz o
 veredito. A cor e redundante com isso.
 
+## As variantes
+
+Quatro figuras -- a 01, a 03, a 04 e a 07 -- saem tambem em duas variantes,
+em subpastas:
+
+* **`deitadas/`** troca os eixos. Na 01, na 03 e na 04 os metodos passam
+  para o eixo x e o valor para o y, virando figuras largas e baixas em vez
+  de colunas altas; na 07 as caixas deitam e os nomes dos pares ficam
+  legiveis a esquerda, sem a rotacao de 90 graus. Serve quando a figura tem
+  de caber na largura de uma coluna de texto.
+* **`por-biblioteca/`** mostra uma rival de cada vez, em vez de todas
+  sobrepostas. Na 07, que compara os pares entre si, **o posto continua
+  sendo o do ranking inteiro**: a figura de cada biblioteca responde onde
+  os pares dela caem entre os 68, e nao como eles se ordenam entre si.
+
+As variantes por biblioteca saem na orientacao padrao. Para deita-las
+tambem, basta acrescentar `deitado=True` na funcao `variantes()` do
+`painel_bibliotecas.py`. Para nao gerar nenhuma delas, `--sem-variantes`.
+
 ## 01 -- equivalencia do erro (TOST com Wilcoxon)
 
 Uma linha por par metodo x biblioteca. O ponto e a diferenca mediana de MAE
