@@ -1098,6 +1098,87 @@ restricoes dentro da tolerancia dele, nao exatamente --, e nao se confunde
 com o `clip` da quapy, que e a unica coisa entre uma solucao sem restricao e
 o simplex.
 
+### A jacobiana que falta no `solve_simplex` na mlquantify
+
+Encontrado ao investigar a cauda do perfil de desempenho: o pior par do
+catalogo e `PACC` em `Walking.csv` (22 classes), onde a mlquantify gasta
+**523x** o tempo de estimacao da quantificationlib. **Fica anotado e nao foi
+consertado**, pela mesma razao da subsecao anterior: mexer na biblioteca
+agora invalidaria as medicoes.
+
+**A maior parte do 523x nao e defeito, e formulacao.** A `PAC` da
+quantificationlib resolve o ajuste em forma fechada, invertendo a matriz de
+confusao; a mlquantify e a quapy resolvem um problema de otimizacao com
+restricao, por iteracao, a cada estimativa. O piso da operacao da a medida:
+uma `predict_proba` de 500 linhas com a regressao logistica do protocolo
+custa **0,178 ms** em `letter.csv` (26 classes), e a qlib gastou 0,13 ms por
+estimativa no `Walking` -- isto e, **a qlib custa um piso**, porque o que ela
+faz alem de classificar a amostra e uma inversao de matriz. As outras duas
+rodam um otimizador:
+
+| | por estimativa, `letter.csv` | em pisos |
+| --- | --- | --- |
+| quantificationlib (`PAC`, forma fechada) | ~0,13 ms* | ~1 |
+| mlquantify (`GPACC`, SLSQP) | 16,1 ms | 90 |
+| quapy (`PACC`, otimizacao) | 54,8 ms | 307 |
+
+\* medido no `Walking` pela execucao oficial; a classe nao importa nesta
+maquina, porque o `cvxpy` dela puxa uma DLL que o Smart App Control bloqueia.
+
+Vale registrar porque corrige uma leitura tentadora: **a mlquantify nao e
+lenta em relacao ao campo**, ela e 3,4x mais rapida que a quapy neste
+conjunto. O vao de tres ordens de grandeza e contra a forma fechada da
+qlib, e as duas escolhas sao defensaveis -- a restricao garante uma saida no
+simplex, a inversao nao.
+
+**O que e defeito, e e corrigivel.** O perfil de 20 chamadas do `predict` do
+`GPACC` em `letter.csv`:
+
+| etapa | fracao do `predict` |
+| --- | --- |
+| `solve_simplex` (SLSQP) | **98%** |
+| dentro dele: `approx_derivative`, diferencas finitas | 75% |
+| dentro dessas: a jacobiana da **restricao** | 35% |
+
+O `solve_simplex` entrega ao SLSQP a funcao objetivo e a restricao de soma,
+e **nenhuma jacobiana**. O scipy entao estima as duas por diferencas
+finitas, o que custa `n_classes + 1` avaliacoes por gradiente, por iteracao
+-- e e por isso que o problema aparece justamente nos conjuntos de muitas
+classes. As duas jacobianas sao fechadas e triviais: a da restricao
+`sum(p) = 1` e um vetor de uns, constante, e a do objetivo quadratico e
+`2 M^T (M p - q)`.
+
+Medido, isolando o solucionador com dados sinteticos da mesma forma
+(60 resolucoes por celula, `tol=1e-10`):
+
+| classes | sem jacobiana | so a da restricao | as duas | fator |
+| --- | --- | --- | --- | --- |
+| 5 | 3,87 ms | 2,30 ms | 0,63 ms | 6,2x |
+| 10 | 10,6 ms | 6,16 ms | 1,46 ms | 7,3x |
+| 22 | 44,9 ms | 48,8 ms | 22,0 ms | 2,0x |
+| 26 | 59,8 ms | 51,7 ms | 18,1 ms | 3,3x |
+| 50 | 110 ms | 93,0 ms | 45,9 ms | 2,4x |
+
+A solucao e a mesma: `max |dif|` entre o primeiro e o ultimo modo fica em
+1e-8 em todas as linhas. Pelo perfil do caminho real o ganho esperado e da
+mesma ordem -- tirar as diferencas finitas remove ate 75% do `predict`, ou
+seja um fator de 2,5 a 4.
+
+**Ressalvas da medicao.** Os tempos acima sao indicativos e nao medicao
+oficial de custo: foram tomados com a maquina em uso, e a coluna "so a da
+restricao" chega a sair acima da coluna sem jacobiana em `n=22`, que e
+ruido. O que resiste ao ruido e a direcao e a ordem de grandeza, confirmadas
+pelo perfil, que nao depende de cronometro: as 21 200 chamadas de
+`approx_derivative` em 20 estimativas sao contagem, nao tempo.
+
+**Alcance.** So a multiclasse: no binario o `minimize_prevalence` despacha
+para `solve_binary`, que e busca escalar e nao usa SLSQP. Sao os mesmos 34
+de 142 conjuntos da subsecao anterior, e os metodos que resolvem por
+`minimize_prevalence` -- `GACC`, `GPACC`, `FM`, a familia de casamento de
+distribuicao. **Nao muda nenhum numero publicado**, porque nada foi alterado;
+muda o que se pode dizer sobre o custo da biblioteca, e e candidato a PR
+proprio, da mesma natureza do icamento da ROC: mesma saida, menos trabalho.
+
 ### Limitacoes de escala observadas na execucao
 
 As anteriores aparecem ao escrever o codigo. Estas so aparecem ao rodar, e
