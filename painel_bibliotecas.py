@@ -960,7 +960,7 @@ HACHURAS = {
 }
 
 
-def _longo_total(ok: pd.DataFrame, pares: pd.DataFrame, coluna: str):
+def _longo_coluna(ok: pd.DataFrame, pares: pd.DataFrame, coluna: str):
     """Uma linha por (par, conjunto), com o custo corrigido quando houver.
 
     Parte da tabela crua, que tem **todos** os pares -- inclusive os metodos
@@ -991,8 +991,36 @@ def _longo_total(ok: pd.DataFrame, pares: pd.DataFrame, coluna: str):
     return base
 
 
-def postos_dos_pares(ok: pd.DataFrame, pares: pd.DataFrame, coluna: str,
-                     piso: float = 0.95):
+def _longo_total(ok: pd.DataFrame, pares: pd.DataFrame, colunas, juntar):
+    """Junta as fases numa medida so: ``soma`` para tempo, ``max`` para pico.
+
+    Tempo de treino e de estimacao **somam**, porque sao trabalho que
+    acontece um depois do outro. Memoria **nao soma**: as duas fases sao
+    sequenciais e o processo libera a primeira antes da segunda, de modo que
+    o pico do programa inteiro e o **maior** dos dois picos, nao a soma --
+    somar inventaria uma ocupacao que nunca existiu ao mesmo tempo.
+
+    So entra o par que tem as duas fases medidas no conjunto: uma soma com
+    metade das parcelas seria menor por ausencia, nao por eficiencia.
+    """
+    if isinstance(colunas, str):
+        colunas = (colunas,)
+    chave = ["metodo", "biblioteca", "dataset_id", "par"]
+    junto = None
+    for i, coluna in enumerate(colunas):
+        parte = _longo_coluna(ok, pares, coluna)
+        if parte.empty:
+            return pd.DataFrame()
+        parte = parte[chave + ["valor"]].rename(columns={"valor": f"v{i}"})
+        junto = parte if junto is None else junto.merge(parte, on=chave)
+    valores = [c for c in junto.columns if c.startswith("v")]
+    junto["valor"] = (junto[valores].sum(axis=1) if juntar == "soma"
+                      else junto[valores].max(axis=1))
+    return junto.drop(columns=valores)
+
+
+def postos_dos_pares(ok: pd.DataFrame, pares: pd.DataFrame, colunas,
+                     juntar: str = "soma", piso: float = 0.95):
     """Posto de cada par (metodo, biblioteca) dentro de cada conjunto.
 
     Ordenar exige **bloco completo**: um conjunto em que falte um par daria
@@ -1001,7 +1029,7 @@ def postos_dos_pares(ok: pd.DataFrame, pares: pd.DataFrame, coluna: str,
     dos 74 pares e 131 dos 142 conjuntos. Quem sai sao os pares que falham
     muito, e eles saem **nomeados** no resumo impresso, nao em silencio.
     """
-    longo = _longo_total(ok, pares, coluna)
+    longo = _longo_total(ok, pares, colunas, juntar)
     if longo.empty:
         return None, [], 0
     largura = longo.pivot_table(index="dataset_id", columns="par",
@@ -1052,8 +1080,8 @@ def figura_ranking(ok: pd.DataFrame, pares: pd.DataFrame, medidas: list,
     from matplotlib.patches import Patch
 
     painel = []
-    for coluna, titulo in medidas:
-        postos, fora, n = postos_dos_pares(ok, pares, coluna, piso)
+    for colunas, titulo, juntar in medidas:
+        postos, fora, n = postos_dos_pares(ok, pares, colunas, juntar, piso)
         if postos is not None:
             painel.append((titulo, postos, n))
     if not painel:
@@ -1625,12 +1653,19 @@ def main() -> int:
                     titulo=titulo.lower())))
                 print(f"grafico: {png}")
 
-        medidas = [(args.erro, args.erro.upper()),
-                   ("tempo_estimacao_total_s", "Tempo de estimacao"),
-                   ("memoria_estimacao_mb", "Memoria na estimacao")]
-        for coluna, titulo in medidas:
-            imprimir_ranking(*postos_dos_pares(ok, pares, coluna,
+        # o grafico carrega so o custo, e com as duas fases juntas: o
+        # tempo soma, a memoria e o pico, que e o maior dos dois e nao a soma
+        medidas = [(("tempo_treino_s", "tempo_estimacao_total_s"),
+                    "Tempo total (treino + estimacao)", "soma"),
+                   (("memoria_treino_mb", "memoria_estimacao_mb"),
+                    "Memoria (pico entre treino e estimacao)", "max")]
+        for colunas, titulo, juntar in medidas:
+            imprimir_ranking(*postos_dos_pares(ok, pares, colunas, juntar,
                                                args.piso_cobertura), titulo)
+        # o erro nao entra no grafico, mas o ranking dele sai impresso
+        imprimir_ranking(*postos_dos_pares(ok, pares, args.erro, "soma",
+                                           args.piso_cobertura),
+                         args.erro.upper())
         png = destino.with_name(destino.stem + "_ranking.png")
         svg_rank = figura_ranking(ok, pares, medidas, png,
                                   args.piso_cobertura)

@@ -2712,20 +2712,31 @@ fora sai **nomeado** na saida do script, nao em silencio: `SMM/quapy` e
 `SORD/quantificationlib`, que falham em um quarto dos conjuntos, e os pares
 de alta dimensionalidade da qunfold.
 
-**Os dez primeiros de cada medida:**
+**As duas fases entram juntas, e nao da mesma forma.** O treino e a
+estimacao sao trabalho sequencial, entao o **tempo soma**. A memoria **nao
+soma**: as fases acontecem uma depois da outra e o processo libera a
+primeira antes da segunda, de modo que o pico do programa inteiro e o
+**maior** dos dois picos. Somar inventaria uma ocupacao que nunca existiu ao
+mesmo tempo. So entra no ranking o par que tem as duas fases medidas no
+conjunto, porque uma soma com metade das parcelas seria menor por ausencia
+e nao por eficiencia.
 
-| erro (MAE) | tempo de estimacao | memoria na estimacao |
+**Os dez primeiros de cada medida.** O grafico carrega so as duas de custo;
+o do erro sai impresso pelo script, e esta aqui porque e ele que da sentido
+aos outros dois:
+
+| erro (MAE) | tempo total | memoria (pico) |
 | --- | --- | --- |
-| `KDEyHD`/quapy 14,56 | `MLPE`/quapy 1,06 | `MLPE`/quapy 1,02 |
-| `KDEyHD`/mlquantify 14,56 | `MLPE`/mlquantify 1,94 | `MLPE`/mlquantify 1,98 |
-| `GKDEyML`/mlquantify 19,92 | `PCC`/quapy 6,07 | `MMD`/mlquantify 3,78 |
-| `KDEyML`/mlquantify 20,00 | `T50`/quapy 6,47 | `PCC`/quapy 7,10 |
-| `EDy`/qunfold 21,02 | `X`/quapy 6,47 | `PCC`/mlquantify 7,33 |
-| `EMQ`/mlquantify 21,30 | `MAX`/quapy 6,67 | `CC`/quapy 7,87 |
-| `KDEyML`/quapy 21,40 | `CC`/quapy 7,40 | `CC`/mlquantify 8,93 |
-| `EMQ`/quantificationlib 21,46 | `CC`/quantificationlib 8,18 | `HDx`/quapy 12,09 |
-| `EMQ`/quapy 21,63 | `CC`/mlquantify 8,53 | `EMQ`/quapy 12,70 |
-| `KDEyCS`/quapy 21,70 | `PCC`/quantificationlib 9,57 | `CC`/quantificationlib 12,50 |
+| `KDEyHD`/quapy 14,56 | `MLPE`/quapy 1,03 | `MLPE`/quapy 1,02 |
+| `KDEyHD`/mlquantify 14,56 | `MLPE`/mlquantify 1,97 | `MLPE`/mlquantify 2,00 |
+| `GKDEyML`/mlquantify 19,92 | `PCC`/quapy 4,60 | `EMQ`/quapy 7,62 |
+| `KDEyML`/mlquantify 20,00 | `CC`/quapy 5,73 | `PCC`/quapy 7,64 |
+| `EDy`/qunfold 21,02 | `CC`/quantificationlib 6,01 | `PCC`/mlquantify 8,37 |
+| `EMQ`/mlquantify 21,30 | `CC`/mlquantify 6,92 | `CC`/quapy 9,15 |
+| `KDEyML`/quapy 21,40 | `PCC`/quantificationlib 7,02 | `HDx`/mlquantify 10,11 |
+| `EMQ`/quantificationlib 21,46 | `PCC`/mlquantify 7,89 | `CC`/mlquantify 10,65 |
+| `EMQ`/quapy 21,63 | `CDE`/mlquantify 11,79 | `MMD`/mlquantify 10,71 |
+| `KDEyCS`/quapy 21,70 | `HDx`/mlquantify 14,53 | `PCC`/quantificationlib 11,30 |
 
 Duas leituras que a figura entrega de relance e as outras nao entregavam:
 
@@ -2740,6 +2751,14 @@ Duas leituras que a figura entrega de relance e as outras nao entregavam:
   devolve a prevalencia de treino. Serve de piso: qualquer par que custe
   mais que o `MLPE` esta pagando por olhar para os dados, e qualquer um que
   erre mais que ele nao deveria existir.
+
+Somar as duas fases tambem muda quem aparece: com o tempo **so da
+estimacao**, os metodos de limiar da quapy (`T50`, `X`, `MAX`) ficavam
+entre os dez primeiros, porque a estimacao deles e barata e o preco esta no
+treino. Com o total eles saem da lista, e entram `CDE` e `HDx` da
+mlquantify. Nenhuma das duas leituras esta errada -- elas respondem a
+perguntas diferentes, e e por isso que o total e o padrao: quem vai usar
+paga as duas fases.
 
 **Ressalvas.** O posto e relativo ao bloco: diz quem foi melhor naquele
 conjunto, nunca por quanto -- uma vitoria por 1% e uma por 100x valem o
