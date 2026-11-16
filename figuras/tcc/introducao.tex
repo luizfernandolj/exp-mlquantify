@@ -1,65 +1,76 @@
 \chapter{Introdução}
 \label{cap:introducao}
 
-O volume de dados coletado e armazenado cresce em ritmo acelerado, e com ele a
-necessidade de métodos capazes de extrair informação dessa massa de registros. O
-aprendizado de máquina atende a essa necessidade com algoritmos que aprendem padrões a
-partir de exemplos e os aplicam a dados novos. A tarefa mais conhecida é a
-classificação, em que cada registro recebe um rótulo.
+O volume de dados gerado e armazenado vem crescendo de forma acelerada com o avanço da
+tecnologia, e a análise manual desse material deixou de ser viável em boa parte das
+aplicações \cite{faceli2021}. Nesse contexto, o aprendizado de máquina se consolidou
+como alternativa, com algoritmos que extraem padrões a partir de exemplos e os aplicam a
+dados ainda desconhecidos. Entre as tarefas estudadas na área, a classificação é uma das
+mais difundidas.
 
-Em muitas aplicações, porém, a pergunta é sobre o grupo inteiro. Um órgão de saúde que
-acompanha uma epidemia precisa saber qual fração da população está infectada, e a
-identidade de cada paciente tem pouca influência sobre a decisão a ser tomada. Uma
-empresa que acompanha a recepção de um produto precisa saber qual porcentagem das
-menções é negativa, sem que seja necessário ler cada comentário. Nos dois casos, o
-resultado procurado é a proporção de cada classe dentro do conjunto.
+Na classificação, um modelo é treinado sobre um conjunto de exemplos em que cada
+registro vem acompanhado de um rótulo, como a espécie de um inseto capturado ou o
+sentimento de um comentário publicado. A partir desses exemplos, o modelo aprende a
+associar os atributos observados a cada rótulo e passa a atribuir rótulos a registros
+que ainda não viu. A qualidade do resultado costuma ser medida pelo acerto dessas
+atribuições individuais, e é sobre essa medida que a maior parte dos algoritmos é
+otimizada.
 
-O caminho natural seria classificar cada elemento e contar os rótulos atribuídos. Essa
-contagem funciona bem sob uma condição silenciosa, a de que os dados usados para treinar
-o modelo e os dados sobre os quais ele é aplicado venham da mesma distribuição, hipótese
-conhecida como independente e identicamente distribuída. A prática viola essa hipótese
-com frequência. A proporção de infectados muda ao longo de uma epidemia, e a proporção
-de menções negativas muda depois de uma atualização do produto.
+Diversas aplicações, porém, formulam a pergunta sobre o conjunto inteiro. Um órgão de
+saúde que acompanha uma epidemia precisa estimar a fração da população infectada para
+dimensionar leitos e campanhas, de modo que o diagnóstico de cada paciente funciona como
+etapa intermediária. De forma semelhante, uma empresa que monitora a recepção de um
+produto precisa conhecer a porcentagem de menções negativas antes de decidir sobre uma
+mudança, sem que a leitura de cada comentário seja necessária. Em situações como essas,
+o resultado procurado é a proporção de cada classe dentro do grupo observado.
 
-Quando a proporção se desloca, o classificador erra sempre na mesma direção, e os erros
-deixam de se compensar na contagem. A estimativa resultante carrega um viés que cresce
-conforme o deslocamento aumenta. Dessa limitação nasce a quantificação, cujos métodos
-estimam a proporção de cada classe de forma direta, com correções que levam em conta os
-erros conhecidos do classificador \cite{forman2005, esuli2023}. A tarefa é tratada como
-um problema próprio desde o trabalho de \citeonline{forman2005} e hoje reúne dezenas de
-métodos \cite{esuli2023}.
+A maneira mais direta de obter essa proporção consiste em classificar cada elemento do
+grupo e contar os rótulos atribuídos. O procedimento depende de uma suposição que
+acompanha o treinamento de qualquer classificador, a de que os dados usados no
+aprendizado e os dados encontrados em uso venham da mesma distribuição, hipótese
+conhecida como independente e identicamente distribuída. As aplicações descritas
+costumam violar essa suposição, uma vez que a proporção de infectados se altera ao longo
+de uma epidemia e a de menções negativas se altera após uma atualização do produto.
 
-As implementações desses métodos, disponíveis em Python, estão distribuídas em
-bibliotecas independentes. Cada uma adota convenções próprias para os dados, para a
-construção dos quantificadores e para a avaliação, de modo que reproduzir um experimento
-em outra biblioteca exige reescrever o código que o executa. Nenhuma delas cobre o
-conjunto de métodos propostos na literatura, e a escolha da biblioteca passa a
-restringir os métodos ao alcance de quem a utiliza.
+Quando a proporção se desloca dessa maneira, o classificador passa a errar de forma
+sistemática na mesma direção e os erros deixam de se compensar na contagem. A estimativa
+obtida carrega então um viés que aumenta conforme o deslocamento se acentua. Em resposta
+a essa limitação surgiu a quantificação, cujos métodos estimam a proporção de cada
+classe de forma direta e aplicam correções baseadas nos erros conhecidos do
+classificador \cite{forman2005}. Desde a formulação inicial da tarefa, a área acumulou
+dezenas de métodos \cite{esuli2023}.
 
-Esse cenário motiva duas perguntas. A primeira trata da possibilidade de reunir os
+As implementações desses métodos em Python se distribuem por bibliotecas independentes,
+e cada uma adota convenções próprias para os dados, para a construção dos quantificadores
+e para a avaliação. Como consequência, reproduzir um experimento em outra biblioteca
+exige reescrever o código que o executa. Soma-se a isso o fato de que nenhuma delas
+cobre o conjunto de métodos propostos na literatura, de modo que a escolha da biblioteca
+acaba por restringir os métodos ao alcance de quem a utiliza.
+
+Esse cenário motiva duas perguntas. A primeira diz respeito à possibilidade de reunir os
 métodos sob uma interface única, com a mesma convenção de uso da biblioteca de
 aprendizado de máquina mais difundida em Python. A segunda trata da garantia de que uma
 implementação nova produza o mesmo resultado das existentes, uma vez que a adoção de uma
 biblioteca depende da confiança em suas estimativas.
 
-Neste trabalho, é proposta a \texttt{mlquantify}, uma biblioteca de quantificação
-construída sobre a interface do \textit{scikit-learn}, com os métodos, os protocolos de
-avaliação e as métricas de erro da área. O objetivo é reunir os métodos da literatura
-sob uma interface única e avaliar a biblioteca frente às existentes. Para alcançá-lo,
-foi definida uma arquitetura capaz de acomodar métodos de exigências distintas, foram
-implementados os métodos, os protocolos e as métricas, foi reunida uma coleção de
-conjuntos de dados tabulares e foram medidos o erro e o custo computacional da
-biblioteca em relação à \verb'QuaPy', à \verb'QuantificationLib' e à \verb'qunfold', nos
-métodos que cada uma implementa.
+Diante disso, neste trabalho é proposta a \texttt{mlquantify}, uma biblioteca de
+quantificação construída sobre a interface do \textit{scikit-learn}, com os métodos, os
+protocolos de avaliação e as métricas de erro da área. O objetivo é reunir os métodos da
+literatura sob uma interface única e avaliar a biblioteca frente às existentes. Para
+alcançá-lo, foi definida uma arquitetura capaz de acomodar métodos de exigências
+distintas, foram implementados os métodos, os protocolos e as métricas, foi reunida uma
+coleção de conjuntos de dados tabulares e foram medidos o erro e o custo computacional
+da biblioteca em relação à \verb'QuaPy', à \verb'QuantificationLib' e à \verb'qunfold',
+nos métodos que cada uma implementa.
 
 O restante deste texto está organizado em cinco capítulos. No
 Capítulo~\ref{cap:aprendizado_de_maquina}, são apresentados os conceitos de aprendizado
 de máquina que sustentam a quantificação, com o aprendizado indutivo, as tarefas
-supervisionadas e os métodos de avaliação. No Capítulo~\ref{chap:quantificacao}, a
-quantificação é definida, junto com a taxonomia dos métodos, os métodos em si e os
-protocolos e métricas usados para avaliá-los. No
+supervisionadas e os métodos de avaliação. Em seguida, no
+Capítulo~\ref{chap:quantificacao}, a quantificação é definida, junto com a taxonomia dos
+métodos, os métodos em si e os protocolos e métricas usados para avaliá-los. No
 Capítulo~\ref{chap:materiais_metodos}, são descritas as bibliotecas de referência e o
-método adotado no desenvolvimento e na avaliação da biblioteca proposta. No
-Capítulo~\ref{cap:resultados}, são apresentadas a biblioteca desenvolvida e os
-resultados da comparação. No Capítulo~\ref{cap:conclusao}, são reunidas as conclusões,
-as limitações e as possibilidades de continuidade.
+método adotado no desenvolvimento e na avaliação da biblioteca proposta. Na sequência,
+no Capítulo~\ref{cap:resultados}, são apresentadas a biblioteca desenvolvida e os
+resultados da comparação. Por fim, no Capítulo~\ref{cap:conclusao}, são reunidas as
+conclusões, as limitações e as possibilidades de continuidade.
