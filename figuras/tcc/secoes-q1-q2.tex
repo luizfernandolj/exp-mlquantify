@@ -1,9 +1,9 @@
 \section{\texorpdfstring{\textbf{Q1}}{Q1} - A biblioteca proposta apresenta erro de quantificação equivalente ao das bibliotecas de referência para um mesmo método?}
 \label{subsec:res_q1}
 
-A comparação reúne 28 métodos e 142 conjuntos de dados, distribuídos em 39 pares de
+A comparação reúne 28 métodos e 132 conjuntos de dados, distribuídos em 39 pares de
 método e biblioteca. Cada par é avaliado sobre os conjuntos concluídos nas duas
-implementações, de 108 a 142 conforme o caso.
+implementações, de 108 a 132 conforme o caso.
 
 A equivalência exige um teste próprio. A ausência de diferença significativa indica
 apenas falta de evidência, de modo que afirmar igualdade pede a hipótese invertida. Foi
@@ -32,17 +32,17 @@ biblioteca.
 
 Em 38 dos 39 pares o intervalo cabe na margem. Em 28 deles não há diferença detectável,
 e nos 10 restantes existe diferença sistemática de magnitude irrelevante, sempre abaixo
-de um ponto percentual. A maior delas alcança $0{,}0047$ em AE.
+de um ponto percentual. A maior delas alcança $0{,}0051$ em AE.
 
 O único par fora da margem é o MS2 contra a \verb'QuaPy', com diferença mediana de
-$-0{,}0077$ e intervalo de $[-0{,}0107,\,-0{,}0045]$, favorável à biblioteca proposta. A
+$-0{,}0078$ e intervalo de $[-0{,}0109,\,-0{,}0045]$, favorável à biblioteca proposta. A
 divergência vem do conjunto de limiares candidatos. A \verb'QuaPy' percorre todos os
 escores distintos obtidos na validação cruzada, enquanto a implementação proposta
 percorre uma grade fixa de 101 pontos, o que desloca a mediana das estimativas tomadas
 sobre esses candidatos.
 
-Em RAE a diferença mediana entre os pares fica em $0{,}0001$ e alcança $0{,}0331$ no
-extremo, com intervalo contendo zero em 22 dos 39 pares. A margem de $0{,}01$ está na
+Em RAE a diferença mediana entre os pares fica em $0{,}0001$ e alcança $0{,}0329$ no
+extremo, com intervalo contendo zero em 20 dos 39 pares. A margem de $0{,}01$ está na
 unidade da prevalência e vale apenas para o AE, razão pela qual o RAE é reportado sem
 veredito de equivalência.
 
@@ -63,10 +63,9 @@ processo libera a primeira fase antes de iniciar a segunda.
 
 A Figura~\ref{fig:res_q2_tempo} traz o tempo. A biblioteca proposta é mais barata com
 intervalo inteiro abaixo de 1 em 18 dos 39 pares e mais cara em 14, com razão mediana de
-$0{,}983$. A vantagem se concentra nos métodos de casamento de distribuição multiclasse,
-com razão de $0{,}017$ no GHDx contra a \verb'qunfold' e de $0{,}023$ no SORD contra a
-\verb'QuantificationLib'. A desvantagem aparece na contagem ajustada da
-\verb'QuantificationLib', com $3{,}6$ no PWKAC, $3{,}4$ no PACC e $3{,}0$ no FM, onde
+$0{,}967$. A vantagem se concentra nos métodos de casamento de distribuição multiclasse,
+com razão de $0{,}016$ no GHDx e de $0{,}023$ no GACC, ambos contra a \verb'qunfold'. A desvantagem aparece na contagem ajustada da
+\verb'QuantificationLib', com $3{,}4$ no PWKAC e no PACC e $3{,}0$ no FM, onde
 aquela biblioteca resolve o ajuste em forma fechada e a proposta recorre a otimização com
 restrição a cada estimativa.
 
@@ -79,8 +78,8 @@ restrição a cada estimativa.
 \end{figure}
 
 A Figura~\ref{fig:res_q2_memoria} traz a memória, cuja vantagem é mais uniforme. A
-biblioteca proposta ocupa menos em 31 dos 39 pares e mais em 6, com razão mediana de
-$0{,}800$. Os extremos vão de $0{,}20$ no GHDx contra a \verb'qunfold' a $1{,}49$ no
+biblioteca proposta ocupa menos em 32 dos 39 pares e mais em 6, com razão mediana de
+$0{,}816$. Os extremos vão de $0{,}19$ no GHDx contra a \verb'qunfold' a $1{,}49$ no
 KDEyCS contra a \verb'QuaPy'.
 
 \begin{figure}[htb]
@@ -95,7 +94,7 @@ A Tabela~\ref{tab:res_q2_fases} separa as fases e mostra comportamentos distinto
 a \verb'QuaPy' e a \verb'QuantificationLib' o treinamento da biblioteca proposta é
 ligeiramente mais barato e a estimação é ligeiramente mais cara, com razões próximas da
 igualdade nas quatro medidas. Contra a \verb'qunfold' a diferença muda de ordem de
-grandeza, com $0{,}018$ no tempo de estimação, efeito do otimizador numérico empregado
+grandeza, com $0{,}017$ no tempo de estimação, efeito do otimizador numérico empregado
 por aquela biblioteca em cada estimativa.
 
 \begin{table}[htb]
@@ -108,10 +107,10 @@ por aquela biblioteca em cada estimativa.
         \hline
         \textbf{Medida} & \verb'QuantificationLib' & \verb'QuaPy' & \verb'qunfold' \\
         \hline
-        Tempo de treinamento   & 0,915 & 0,972 & 1,075 \\
-        Tempo de estimação     & 1,048 & 1,078 & 0,018 \\
-        Memória no treinamento & 0,928 & 0,795 & 0,998 \\
-        Memória na estimação   & 0,744 & 0,903 & 0,376 \\
+        Tempo de treinamento   & 0,907 & 0,972 & 1,080 \\
+        Tempo de estimação     & 1,021 & 1,053 & 0,017 \\
+        Memória no treinamento & 0,924 & 0,789 & 0,998 \\
+        Memória na estimação   & 0,743 & 0,904 & 0,388 \\
         \hline
     \end{tabular}
 
@@ -136,7 +135,7 @@ multiclasse automática e composição explícita de representação, perda e so
 A avaliação experimental respondeu às duas questões formuladas. Em erro, 38 dos 39 pares
 de método e biblioteca apresentam intervalo de confiança contido na margem de um ponto
 percentual de prevalência, e o único par fora dela favorece a biblioteca proposta. Em
-custo, a razão mediana fica em $0{,}983$ no tempo e em $0{,}800$ na memória, com ganhos
+custo, a razão mediana fica em $0{,}967$ no tempo e em $0{,}816$ na memória, com ganhos
 nos métodos multiclasse de casamento de distribuição e perdas nos métodos de contagem
 ajustada que a \verb'QuantificationLib' resolve em forma fechada.
 

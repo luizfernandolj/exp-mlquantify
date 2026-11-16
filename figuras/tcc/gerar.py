@@ -3,6 +3,7 @@
 Usa so a execucao oficial `final-pareado`, sem o overlay de custo, para que
 o resultado corresponda ao metodo descrito no capitulo anterior.
 """
+import io
 import sys
 from pathlib import Path
 
@@ -16,7 +17,15 @@ RAIZ = Path("C:/Users/luiz_/exp-mlquantify-run/results")
 SAIDA = Path("C:/Users/luiz_/OneDrive/Codigos/exp-mlquantify/figuras/tcc")
 SAIDA.mkdir(parents=True, exist_ok=True)
 
+#: Dez conjuntos entraram na colecao depois dos criterios de selecao
+#: descritos no capitulo de metodo e ficam de fora aqui, o que devolve os
+#: 132 do texto, com 108 binarios e 24 multiclasse. Sao todos multiclasse.
+FORA = [l.strip() for l in io.open(
+    "C:/Users/luiz_/OneDrive/Codigos/exp-mlquantify/descricao/"
+    "conjuntos_fora_do_criterio.txt", encoding="utf-8") if l.strip()]
+
 ok = pb.carregar(RAIZ / "final-pareado")
+ok = ok[~ok["dataset_id"].isin(FORA)]
 pares = pb.parear(ok)
 
 # tempo soma entre as fases, memoria e o pico, que e o maior dos dois
