@@ -657,6 +657,136 @@ def figura_equivalencia(teste: pd.DataFrame, margem: float, erro: str,
     return _salvar(fig, destino, extras=legendas)
 
 
+def figura_bland_altman(dif: pd.DataFrame, teste: pd.DataFrame, margem: float,
+                        erro: str, destino: Path, quantos: int = 8) -> str:
+    """Concordancia conjunto a conjunto: a diferenca contra o nivel do erro.
+
+    O grafico de equivalencia resume cada par num ponto e num intervalo.
+    Este responde outra pergunta, que aquele nao responde: a discordancia e
+    constante ou cresce com a dificuldade do conjunto? E o grafico de
+    Bland-Altman, da concordancia entre dois instrumentos de medida, com
+    duas adaptacoes. O eixo y e simetrico-logaritmico com o joelho na
+    propria margem, porque as diferencas se amontoam em 1e-4 e vao a 0,3 --
+    dentro da faixa o eixo e linear, fora dela e logaritmico. E os limites
+    de concordancia sao os percentis 2,5 e 97,5 em vez de media +- 1,96
+    desvios, porque a cauda e pesada e o resto da analise tambem e
+    distribuicao-livre.
+
+    Mostra os ``quantos`` pares de maior espalhamento: onde as duas
+    bibliotecas concordam nao ha o que ver.
+    """
+    import matplotlib
+
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+    from matplotlib.lines import Line2D
+    from matplotlib.ticker import FixedLocator, NullFormatter
+
+    dados = dif.copy()
+    dados["nivel"] = (dados[f"{erro}_minha"] + dados[f"{erro}_dela"]) / 2.0
+    cores = _cores_de(dados)
+    formas = _marcas_de(dados)
+
+    # os pares em que ha discordancia para olhar, pelos 95% centrais
+    def espalhamento(s):
+        return float(np.percentile(s, 97.5) - np.percentile(s, 2.5))
+
+    ordem = (dados.groupby(["metodo", "biblioteca"])["dif"]
+             .agg(espalhamento).sort_values(ascending=False))
+    escolhidos = list(ordem.index[:quantos])
+    if not escolhidos:
+        return ""
+
+    colunas = 4 if len(escolhidos) > 3 else len(escolhidos)
+    linhas = int(np.ceil(len(escolhidos) / colunas))
+    fig, eixos = plt.subplots(linhas, colunas, dpi=200, squeeze=False,
+                              sharex=True, sharey=True,
+                              figsize=(3.9 * colunas, 3.3 * linhas + 1.2))
+    fig.patch.set_facecolor(FUNDO)
+
+    limite = max(float(dados.loc[
+        dados.set_index(["metodo", "biblioteca"]).index.isin(escolhidos),
+        "dif"].abs().max()) * 1.6, margem * 4)
+    nivel_max = float(dados["nivel"].max()) * 1.04
+
+    chave = teste.set_index(["metodo", "biblioteca"]) if teste is not None \
+        else None
+
+    for i, eixo in enumerate(eixos.ravel()):
+        if i >= len(escolhidos):
+            eixo.set_visible(False)
+            continue
+        metodo, lib = escolhidos[i]
+        sub = dados[(dados["metodo"] == metodo)
+                    & (dados["biblioteca"] == lib)]
+        cor = cores[lib]
+        _estilo(eixo, fonte=13)
+        eixo.grid(axis="y", color=GRADE, lw=0.7)
+
+        eixo.axhspan(-margem, margem, color=VERDE, alpha=0.08, lw=0, zorder=0)
+        eixo.axhline(0, color=FRACO, lw=1.0, zorder=1)
+
+        baixo = float(np.percentile(sub["dif"], 2.5))
+        alto = float(np.percentile(sub["dif"], 97.5))
+        centro = (float(chave.loc[(metodo, lib), "hl"])
+                  if chave is not None and (metodo, lib) in chave.index
+                  else float(np.median(sub["dif"])))
+        for lado in (baixo, alto):
+            eixo.axhline(lado, color=cor, lw=1.4, ls=(0, (5, 4)), zorder=2)
+        eixo.axhline(centro, color=cor, lw=2.0, zorder=2)
+
+        eixo.plot(sub["nivel"], sub["dif"], ls="", marker=formas[lib],
+                  ms=5.5, mfc="none", mec=cor, mew=1.2, alpha=0.75, zorder=3)
+
+        # a pergunta do grafico, em numero: a discordancia acompanha o nivel?
+        rho = float(pd.Series(sub["dif"].abs().to_numpy()).corr(
+            pd.Series(sub["nivel"].to_numpy()), method="spearman"))
+        eixo.set_title(f"{metodo} contra {lib}", fontsize=13.5, color=TINTA,
+                       pad=8)
+        eixo.annotate(f"n={len(sub)}   rho={rho:+.2f}",
+                      xy=(0.97, 0.03), xycoords="axes fraction",
+                      fontsize=11.5, color=FRACO, ha="right", va="bottom",
+                      bbox=dict(facecolor=FUNDO, edgecolor="none", pad=2),
+                      zorder=5)
+
+    marcas = [t for t in (-0.3, -0.1, -0.03, -0.01, 0, 0.01, 0.03, 0.1, 0.3)
+              if abs(t) <= limite]
+    for eixo in eixos.ravel():
+        if not eixo.get_visible():
+            continue
+        eixo.set_yscale("symlog", linthresh=margem, linscale=1.1)
+        eixo.set_ylim(-limite, limite)
+        eixo.set_xlim(0, nivel_max)
+        eixo.yaxis.set_major_locator(FixedLocator(marcas))
+        eixo.set_yticklabels([f"{t:g}" for t in marcas], fontsize=12.5)
+        eixo.yaxis.set_minor_formatter(NullFormatter())
+
+    for eixo in eixos[-1]:
+        if eixo.get_visible():
+            eixo.set_xlabel(f"nivel do {erro.upper()}: media das duas",
+                            fontsize=13, color=TINTA, labelpad=8)
+    for linha in eixos:
+        linha[0].set_ylabel(f"diferenca de {erro.upper()}\n"
+                            f"(mlquantify $-$ outra)",
+                            fontsize=13, color=TINTA, labelpad=8)
+
+    chaves = [
+        Line2D([], [], color=TINTA, lw=0, marker="o", ms=7, mfc="none",
+               mew=1.2, label="um conjunto de dados"),
+        Line2D([], [], color=TINTA, lw=2.0, label="diferenca mediana"),
+        Line2D([], [], color=TINTA, lw=1.4, ls=(0, (5, 4)),
+               label="95% centrais dos conjuntos"),
+        Line2D([], [], color=VERDE, lw=6, alpha=0.3,
+               label=f"faixa $\\pm${margem:g}"),
+    ]
+    leg = fig.legend(handles=chaves, loc="lower left", frameon=False,
+                     fontsize=13, ncols=len(chaves), handletextpad=0.5,
+                     handlelength=1.8, borderpad=0.0,
+                     bbox_to_anchor=(0.06, 0.985), bbox_transform=fig.transFigure)
+    fig.tight_layout(rect=(0, 0, 1, 0.98))
+    return _salvar(fig, destino, extras=[leg])
+
+
 def figura_custo(tabela: pd.DataFrame, titulo: str, destino: Path) -> str:
     """Razao de custo por par, em escala logaritmica, com IC de 95%."""
     import matplotlib
@@ -829,7 +959,8 @@ def _tabela_teste(teste: pd.DataFrame, margem: float) -> str:
 def html_painel(resumo: pd.DataFrame, pares: pd.DataFrame, run_id: str,
                 custo_run: str | None, teste: pd.DataFrame | None = None,
                 svg: str | None = None, margem: float = MARGEM,
-                erro: str = "mae", svg_custo: list | None = None) -> str:
+                erro: str = "mae", svg_custo: list | None = None,
+                svg_ba: str | None = None) -> str:
     res = resumo.copy()
     res["veredito"] = res.apply(veredito, axis=1)
     caras, erradas, ganhos = _classificar(res)
@@ -937,6 +1068,25 @@ testes rejeitam: existe diferenca sistematica, e ela cabe dentro da margem.
 &quot;Inconclusivo&quot; e falta de evidencia nos dois sentidos, nao
 igualdade.</p>"""
 
+    if svg_ba:
+        bloco_teste += f"""
+<h2>Onde a discordancia aparece</h2>
+<p class="sub">O grafico acima resume cada par num ponto. Este abre os
+conjuntos e responde o que aquele nao responde: a discordancia e constante
+ou cresce com a dificuldade? Cada circulo e um conjunto de dados; no eixo x
+esta o nivel do erro (a media das duas bibliotecas) e no y a diferenca
+entre elas. O eixo y e linear dentro da faixa de equivalencia e logaritmico
+fora dela, porque as diferencas se amontoam perto de zero. O
+<code>rho</code> em cada painel e a correlacao de Spearman entre o tamanho
+da discordancia e o nivel do erro: positivo alto quer dizer que as duas so
+divergem nos conjuntos dificeis.</p>
+<figure>{svg_ba}<figcaption>Os pares de maior espalhamento, que sao os
+unicos em que ha o que ver. A linha cheia e a
+diferenca mediana (Hodges-Lehmann, a mesma do grafico anterior) e as
+tracejadas sao os percentis 2,5 e 97,5 dos conjuntos -- os limites de
+concordancia, em versao distribuicao-livre, porque a cauda e pesada demais
+para media mais ou menos 1,96 desvios.</figcaption></figure>"""
+
     if svg_custo:
         bloco_teste += f"""
 <h2>Custo: quanto a mlquantify cobra em relacao a outra</h2>
@@ -1038,6 +1188,9 @@ def main() -> int:
                    help="grava tambem o resumo em csv")
     p.add_argument("--erro", default="mae", choices=("mae", "mrae"),
                    help="medida de erro do teste (padrao: mae)")
+    p.add_argument("--pares-concordancia", type=int, default=8, metavar="N",
+                   help="quantos pares entram no grafico de concordancia, "
+                        "do maior espalhamento para o menor (padrao: 8)")
     p.add_argument("--margem", type=float, default=MARGEM, metavar="X",
                    help=f"margem de equivalencia do TOST (padrao: {MARGEM})")
     p.add_argument("--sem-teste", action="store_true",
@@ -1062,7 +1215,7 @@ def main() -> int:
     destino = Path(args.html) if args.html else run_dir / "painel_bibliotecas.html"
     destino.parent.mkdir(parents=True, exist_ok=True)
 
-    teste, svg, svg_custo = None, None, []
+    teste, svg, svg_ba, svg_custo = None, None, None, []
     if not args.sem_teste:
         teste = testar(pares, erro=args.erro, margem=args.margem)
         if not teste.empty:
@@ -1072,6 +1225,13 @@ def main() -> int:
             print(f"\ngrafico: {png}")
             teste.to_csv(destino.with_name(destino.stem + "_equivalencia.csv"),
                          index=False)
+
+            png = destino.with_name(destino.stem + "_concordancia.png")
+            svg_ba = figura_bland_altman(
+                diferencas(pares, args.erro), teste, args.margem, args.erro,
+                png, quantos=args.pares_concordancia)
+            if svg_ba:
+                print(f"grafico: {png}")
 
         for coluna, nome, legenda in (
             ("tempo_estimacao_total_s", "tempo",
@@ -1099,7 +1259,7 @@ def main() -> int:
     destino.write_text(
         html_painel(resumo, pares, args.run_id, args.custo_run,
                     teste=teste, svg=svg, margem=args.margem,
-                    erro=args.erro, svg_custo=svg_custo),
+                    erro=args.erro, svg_custo=svg_custo, svg_ba=svg_ba),
         encoding="utf-8")
     print(f"painel: {destino}")
     if args.csv:
