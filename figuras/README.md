@@ -61,6 +61,11 @@ As variantes por biblioteca saem na orientacao padrao. Para deita-las
 tambem, basta acrescentar `deitado=True` na funcao `variantes()` do
 `painel_bibliotecas.py`. Para nao gerar nenhuma delas, `--sem-variantes`.
 
+Em **`tcc/`** estao as tres figuras do capitulo de resultados da
+monografia, que usam **132 conjuntos de dados** em vez de 142. O recorte
+segue os criterios de selecao descritos no texto e o README de la explica a
+diferenca. O painel segue com os 142, que e a execucao como ela foi.
+
 Em **`mse/`** estao as duas figuras que dependem da medida de erro -- a 01 e
 a 02 -- refeitas em MSE, com a margem de equivalencia reescolhida. O README
 de la explica de onde sai o numero. As figuras de custo nao estao repetidas
