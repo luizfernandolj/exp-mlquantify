@@ -1,0 +1,78 @@
+\chapter{Introdução}
+\label{cap:introducao}
+
+
+A classificação atribui um rótulo a cada instância de um conjunto de dados. Em muitas
+aplicações, porém, o interesse recai sobre a proporção de cada classe em um conjunto de
+instâncias não rotuladas, e a identificação individual é apenas um meio de chegar a
+ela \cite{forman2005}. A tarefa de estimar essa proporção recebe o nome de
+quantificação \cite{esuli2023}.
+
+A diferença entre as duas tarefas tem consequência prática. Contar os rótulos atribuídos
+por um classificador acumula os erros dele, e o resultado carrega um viés que cresce
+conforme a proporção real se afasta daquela observada no treinamento. Por isso foram
+propostos métodos próprios para a quantificação, com correções que vão da compensação
+das taxas de acerto do classificador ao casamento entre distribuições de escores.
+
+A tarefa aparece em áreas distintas. No monitoramento de insetos vetores de doenças,
+interessa a proporção de cada espécie capturada em uma região, informação que orienta
+ações de controle sem exigir a identificação de cada inseto \cite{maletzke2019}. Em
+redes sociais, interessa a fração de menções positivas e negativas sobre um tema. Em
+ambos os casos, a estimativa da proporção é o produto final.
+
+A literatura da área acumula dezenas de métodos, e as implementações disponíveis em
+Python estão distribuídas em bibliotecas independentes. Cada uma adota convenções
+próprias para os dados, para a construção dos quantificadores e para a avaliação, de
+modo que reproduzir um experimento em outra biblioteca exige reescrever o código que o
+executa. Nenhuma delas cobre o conjunto de métodos propostos na literatura, e a escolha
+da biblioteca passa a restringir os métodos ao alcance de quem a utiliza.
+
+Esse cenário motiva duas perguntas. A primeira trata da possibilidade de reunir os
+métodos sob uma interface única, com a mesma convenção de uso da biblioteca de
+aprendizado de máquina mais difundida em Python. A segunda trata da garantia de que uma
+implementação nova produza o mesmo resultado das existentes, uma vez que a adoção de uma
+biblioteca depende da confiança em suas estimativas.
+
+Neste trabalho, é proposta a \texttt{mlquantify}, uma biblioteca de quantificação
+construída sobre a interface do \textit{scikit-learn}, com os métodos, os protocolos de
+avaliação e as métricas de erro da área. A biblioteca é comparada experimentalmente com
+a \verb'QuaPy', a \verb'QuantificationLib' e a \verb'qunfold', nos métodos que cada uma
+implementa, quanto ao erro de estimativa e ao custo computacional.
+
+
+\section{Objetivos}
+\label{sec:objetivos}
+
+O objetivo geral deste trabalho é desenvolver uma biblioteca de quantificação em Python
+que reúna os métodos da literatura sob uma interface única e avaliá-la frente às
+bibliotecas existentes.
+
+Os objetivos específicos são os seguintes.
+
+\begin{enumerate}
+    \item Definir uma arquitetura capaz de acomodar métodos de exigências distintas sob
+    uma mesma interface.
+    \item Implementar os métodos de quantificação, os protocolos de avaliação e as
+    métricas de erro descritos na literatura.
+    \item Reunir e selecionar uma coleção de conjuntos de dados tabulares para a
+    avaliação experimental.
+    \item Verificar se o erro da biblioteca proposta é equivalente ao das bibliotecas de
+    referência em um mesmo método.
+    \item Medir o custo em tempo e em memória da biblioteca proposta em relação às
+    demais.
+\end{enumerate}
+
+
+\section{Organização do Texto}
+\label{sec:organizacao_texto}
+
+O restante deste texto está organizado em cinco capítulos. No
+Capítulo~\ref{cap:aprendizado_de_maquina}, são apresentados os conceitos de aprendizado de máquina
+que sustentam a quantificação, com o aprendizado indutivo, as tarefas supervisionadas e
+os métodos de avaliação. No Capítulo~\ref{chap:quantificacao}, a quantificação é
+definida, junto com a taxonomia dos métodos, os métodos em si e os protocolos e métricas
+usados para avaliá-los. No Capítulo~\ref{chap:materiais_metodos}, são descritas as
+bibliotecas de referência e o método adotado no desenvolvimento e na avaliação da
+biblioteca proposta. No Capítulo~\ref{cap:resultados}, são apresentadas a biblioteca
+desenvolvida e os resultados da comparação. No Capítulo~\ref{cap:conclusao}, são
+reunidas as conclusões, as limitações e as possibilidades de continuidade.

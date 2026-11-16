@@ -1,0 +1,170 @@
+%\renewcommand{\appendixname}{Anexo} %trocar Apendice por Anexo
+\appendix
+\chapter{Conjuntos de Dados Utilizados}
+\label{ap:conjuntos}
+
+Os 132 conjuntos de dados que restaram após os critérios de seleção da
+Seção~\ref{subsec:etapa_dados} são listados na Tabela~\ref{tab:ap_conjuntos}. De cada um
+são informados o número de atributos, o número de instâncias, o número de classes, a
+razão de desbalanceamento e a origem.
+
+O símbolo $n$ corresponde ao total de instâncias do conjunto, antes da divisão entre
+treinamento e teste descrita na Seção~\ref{subsec:etapa_avaliacao}. O símbolo $k$
+corresponde ao número de classes distintas, com $k = 2$ nos problemas binários. A razão
+de desbalanceamento é o número de instâncias da classe majoritária dividido pelo da
+minoritária, de modo que o valor 1 indica classes de mesmo tamanho. Os conjuntos
+aparecem com os binários primeiro e, dentro de cada grupo, em ordem alfabética.
+
+\footnotesize
+\setlength{\tabcolsep}{4pt}
+\begin{longtable}{lrrrrl}
+    \caption{Conjuntos de dados utilizados na avaliação experimental.}
+    \label{tab:ap_conjuntos}\\
+    \hline
+    \textbf{Conjunto} & \textbf{Atrib.} & \textbf{$n$} & \textbf{$k$} & \textbf{Desbal.} & \textbf{Origem} \\
+    \hline
+    \endfirsthead
+    \caption[]{Conjuntos de dados utilizados na avaliação experimental (continuação).}\\
+    \hline
+    \textbf{Conjunto} & \textbf{Atrib.} & \textbf{$n$} & \textbf{$k$} & \textbf{Desbal.} & \textbf{Origem} \\
+    \hline
+    \endhead
+    \hline
+    \endfoot
+    \texttt{1460\_banana} & 2 & 5.300 & 2 & 1,23 & Maletzke \\
+    \texttt{1462\_banknote-authentication} & 4 & 1.372 & 2 & 1,25 & Maletzke \\
+    \texttt{1466\_cardiotocography} & 35 & 2.126 & 2 & 2,67 & Maletzke \\
+    \texttt{1475\_first-order-theorem-proving} & 51 & 6.118 & 2 & 1,40 & Maletzke \\
+    \texttt{1479\_hill-valley} & 100 & 1.212 & 2 & 1,00 & Maletzke \\
+    \texttt{1485\_madelon} & 500 & 2.600 & 2 & 1,00 & Maletzke \\
+    \texttt{1489\_phoneme} & 5 & 5.404 & 2 & 2,41 & Maletzke \\
+    \texttt{1494\_qsar-biodeg} & 41 & 1.055 & 2 & 1,96 & Maletzke \\
+    \texttt{1496\_ringnorm} & 20 & 7.400 & 2 & 1,02 & Maletzke \\
+    \texttt{1497\_wall-robot-navigation} & 24 & 5.456 & 2 & 1,47 & Maletzke \\
+    \texttt{1504\_steel-plates-fault} & 33 & 1.941 & 2 & 1,88 & Maletzke \\
+    \texttt{1507\_twonorm} & 20 & 7.400 & 2 & 1,00 & Maletzke \\
+    \texttt{1526\_wall-robot-navigation} & 4 & 5.456 & 2 & 1,47 & Maletzke \\
+    \texttt{1535\_volcanoes-b5} & 3 & 9.989 & 2 & 24,61 & Maletzke \\
+    \texttt{1538\_volcanoes-d1} & 3 & 8.753 & 2 & 16,94 & Maletzke \\
+    \texttt{1539\_volcanoes-d2} & 3 & 9.172 & 2 & 17,27 & Maletzke \\
+    \texttt{1540\_volcanoes-d3} & 3 & 9.285 & 2 & 17,06 & Maletzke \\
+    \texttt{1541\_volcanoes-d4} & 3 & 8.654 & 2 & 16,63 & Maletzke \\
+    \texttt{1566\_hill-valley} & 100 & 1.212 & 2 & 1,02 & Maletzke \\
+    \texttt{182\_satimage} & 36 & 6.430 & 2 & 3,20 & Maletzke \\
+    \texttt{23\_cmc} & 9 & 1.473 & 2 & 1,34 & Maletzke \\
+    \texttt{28\_optdigits} & 62 & 5.620 & 2 & 8,83 & Maletzke \\
+    \texttt{294\_satellite\_image} & 36 & 6.435 & 2 & 3,20 & Maletzke \\
+    \texttt{30\_page-blocks} & 10 & 5.473 & 2 & 8,77 & Maletzke \\
+    \texttt{312\_scene} & 299 & 2.407 & 2 & 4,58 & Maletzke \\
+    \texttt{375\_JapaneseVowels} & 14 & 9.961 & 2 & 5,17 & Maletzke \\
+    \texttt{40733\_yeast} & 8 & 1.269 & 2 & 1,90 & Maletzke \\
+    \texttt{44\_spambase} & 57 & 4.601 & 2 & 1,54 & Maletzke \\
+    \texttt{4538\_GesturePhaseSegmentationProcessed} & 32 & 9.873 & 2 & 2,35 & Maletzke \\
+    \texttt{60\_waveform-5000} & 40 & 5.000 & 2 & 1,96 & Maletzke \\
+    \texttt{679\_rmftsa\_sleepdata} & 2 & 1.024 & 2 & 1,53 & Maletzke \\
+    \texttt{abalone} & 8 & 4.177 & 2 & 1,01 & Maletzke \\
+    \texttt{AedesQuinx} & 27 & 24.000 & 2 & 1,00 & Maletzke \\
+    \texttt{AedesSex} & 27 & 24.000 & 2 & 1,00 & Maletzke \\
+    \texttt{ailerons} & 40 & 13.750 & 2 & 1,36 & Maletzke \\
+    \texttt{anuranCalls} & 22 & 6.585 & 2 & 2,04 & Maletzke \\
+    \texttt{ArabicDigit} & 27 & 8.800 & 2 & 1,00 & Maletzke \\
+    \texttt{balance.1} & 4 & 625 & 2 & 1,17 & Maletzke \\
+    \texttt{balloon} & 2 & 2.001 & 2 & 3,15 & Maletzke \\
+    \texttt{bank8FM} & 8 & 8.192 & 2 & 1,48 & Maletzke \\
+    \texttt{BNG} & 9 & 39.366 & 2 & 1,91 & Maletzke \\
+    \texttt{breast-cancer} & 9 & 683 & 2 & 1,86 & Maletzke \\
+    \texttt{churn} & 20 & 5.000 & 2 & 6,07 & Maletzke \\
+    \texttt{clean2} & 168 & 6.598 & 2 & 5,49 & Maletzke \\
+    \texttt{click-prediction} & 11 & 39.948 & 2 & 4,94 & Maletzke \\
+    \texttt{cmc.1} & 9 & 1.473 & 2 & 1,34 & Maletzke \\
+    \texttt{cmc.2} & 9 & 1.473 & 2 & 3,42 & Maletzke \\
+    \texttt{cmc.3} & 9 & 1.473 & 2 & 1,88 & Maletzke \\
+    \texttt{covtype\_reduced} & 54 & 8.715 & 2 & 1,06 & Maletzke \\
+    \texttt{cpu\_act} & 21 & 8.192 & 2 & 2,31 & Maletzke \\
+    \texttt{ctg.1} & 21 & 2.126 & 2 & 3,51 & Maletzke \\
+    \texttt{ctg.2} & 21 & 2.126 & 2 & 6,21 & Maletzke \\
+    \texttt{ctg.3} & 21 & 2.126 & 2 & 11,08 & Maletzke \\
+    \texttt{default\_credit\_card\_clients} & 23 & 30.000 & 2 & 3,52 & Maletzke \\
+    \texttt{delta\_ailerons} & 5 & 7.129 & 2 & 1,13 & Maletzke \\
+    \texttt{diamonds\_data} & 21 & 53.940 & 2 & 9,65 & Schumacher \\
+    \texttt{eeg} & 14 & 14.980 & 2 & 1,23 & Maletzke \\
+    \texttt{electricity-normalized} & 8 & 45.312 & 2 & 1,36 & Maletzke \\
+    \texttt{elevators} & 18 & 16.599 & 2 & 2,24 & Maletzke \\
+    \texttt{fifa19\_data} & 117 & 14.750 & 2 & 6,67 & Schumacher \\
+    \texttt{file22f0e4a679} & 256 & 1.424 & 2 & 1,01 & Maletzke \\
+    \texttt{file79b563a1a18} & 144 & 2.984 & 2 & 1,00 & Maletzke \\
+    \texttt{file7b5365fa741c} & 48 & 4.147 & 2 & 3,03 & Maletzke \\
+    \texttt{fri\_c2\_1000\_10} & 10 & 1.000 & 2 & 1,38 & Maletzke \\
+    \texttt{fried} & 10 & 40.768 & 2 & 1,00 & Maletzke \\
+    \texttt{german} & 24 & 1.000 & 2 & 2,33 & Maletzke \\
+    \texttt{gina\_agnostic} & 970 & 3.468 & 2 & 1,03 & Maletzke \\
+    \texttt{haberman} & 3 & 306 & 2 & 2,78 & Maletzke \\
+    \texttt{houses} & 8 & 20.640 & 2 & 1,32 & Maletzke \\
+    \texttt{HTRU} & 8 & 17.898 & 2 & 9,92 & Maletzke \\
+    \texttt{ionosphere} & 34 & 351 & 2 & 1,79 & Maletzke \\
+    \texttt{iris.2} & 4 & 150 & 2 & 2,00 & Maletzke \\
+    \texttt{jm1-processed} & 21 & 10.880 & 2 & 4,17 & Maletzke \\
+    \texttt{kin8nm} & 8 & 8.192 & 2 & 1,04 & Maletzke \\
+    \texttt{letter-recognition} & 16 & 20.000 & 2 & 4,16 & Maletzke \\
+    \texttt{magic} & 10 & 19.020 & 2 & 1,84 & Maletzke \\
+    \texttt{mammographic} & 5 & 830 & 2 & 1,06 & Maletzke \\
+    \texttt{mozilla} & 5 & 15.545 & 2 & 2,04 & Maletzke \\
+    \texttt{namao} & 118 & 34.465 & 2 & 2,50 & Maletzke \\
+    \texttt{occupancy} & 5 & 20.560 & 2 & 3,33 & Maletzke \\
+    \texttt{pageblocks.5} & 10 & 5.473 & 2 & 46,59 & Maletzke \\
+    \texttt{pendigits} & 16 & 10.992 & 2 & 8,61 & Maletzke \\
+    \texttt{phphQEck0} & 3 & 245.057 & 2 & 3,82 & Maletzke \\
+    \texttt{phpMD2hR6} & 6 & 88.588 & 2 & 1,00 & Maletzke \\
+    \texttt{phpmPOD5A} & 9 & 32.769 & 2 & 16,27 & Maletzke \\
+    \texttt{pol} & 48 & 15.000 & 2 & 1,98 & Maletzke \\
+    \texttt{pollen} & 5 & 3.848 & 2 & 1,00 & Maletzke \\
+    \texttt{puma32H} & 32 & 8.192 & 2 & 1,02 & Maletzke \\
+    \texttt{puma8NH} & 8 & 8.192 & 2 & 1,01 & Maletzke \\
+    \texttt{quake} & 3 & 2.178 & 2 & 1,25 & Maletzke \\
+    \texttt{sonar} & 60 & 208 & 2 & 1,14 & Maletzke \\
+    \texttt{space\_ga} & 6 & 3.107 & 2 & 1,02 & Maletzke \\
+    \texttt{spambase(1)} & 57 & 4.601 & 2 & 1,54 & Maletzke \\
+    \texttt{spectf} & 44 & 267 & 2 & 3,85 & Maletzke \\
+    \texttt{sylva\_prior} & 108 & 14.395 & 2 & 15,25 & Maletzke \\
+    \texttt{theorem} & 56 & 6.118 & 2 & 1,40 & Schumacher \\
+    \texttt{tictactoe} & 9 & 958 & 2 & 1,89 & Maletzke \\
+    \texttt{transfusion} & 4 & 748 & 2 & 3,20 & Maletzke \\
+    \texttt{video\_game\_sales\_data} & 132 & 6.825 & 2 & 1,87 & Schumacher \\
+    \texttt{visualizing\_soil} & 4 & 8.641 & 2 & 1,22 & Maletzke \\
+    \texttt{wind} & 14 & 6.574 & 2 & 1,14 & Maletzke \\
+    \texttt{wine-q-red} & 11 & 1.599 & 2 & 1,15 & Maletzke \\
+    \texttt{wine-q-white} & 11 & 4.898 & 2 & 1,99 & Maletzke \\
+    \texttt{wine.1} & 13 & 178 & 2 & 2,02 & Maletzke \\
+    \texttt{wine.2} & 13 & 178 & 2 & 1,51 & Maletzke \\
+    \texttt{wine.3} & 13 & 178 & 2 & 2,71 & Maletzke \\
+    \texttt{winetype} & 12 & 6.497 & 2 & 3,06 & Maletzke \\
+    \texttt{yeast} & 8 & 1.484 & 2 & 2,46 & Maletzke \\
+    \texttt{academic-success} & 36 & 4.424 & 3 & 2,78 & QuaPy \\
+    \texttt{blog\_feedback\_data} & 276 & 52.397 & 4 & 7,54 & Schumacher \\
+    \texttt{concrete\_data} & 8 & 1.030 & 3 & 2,57 & Schumacher \\
+    \texttt{Covertype} & 54 & 110.393 & 7 & 38,60 & Grupo \\
+    \texttt{customer\_segmentation} & 10 & 8.068 & 4 & 1,22 & Kaggle \\
+    \texttt{Dermatology} & 34 & 1.000.000 & 6 & 5,47 & Grupo \\
+    \texttt{digits} & 64 & 5.620 & 10 & 1,03 & QuaPy \\
+    \texttt{dry-bean} & 16 & 13.611 & 7 & 6,79 & QuaPy \\
+    \texttt{fabert} & 800 & 8.237 & 7 & 3,84 & OpenML \\
+    \texttt{fashion-mnist} & 784 & 70.000 & 10 & 1,00 & Kaggle \\
+    \texttt{HAR} & 561 & 10.299 & 6 & 1,38 & Grupo \\
+    \texttt{IRIS} & 4 & 150 & 3 & 1,00 & Kaggle \\
+    \texttt{Mfeat} & 6 & 2.000 & 10 & 1,00 & Grupo \\
+    \texttt{Mfeat\_icdm21} & 6 & 1.600 & 3 & 1,50 & Grupo \\
+    \texttt{microaggregation2} & 20 & 20.000 & 5 & 15,02 & OpenML \\
+    \texttt{Mosquitoes} & 53 & 158.249 & 6 & 39,72 & Grupo \\
+    \texttt{news\_popularity\_data} & 59 & 39.644 & 4 & 3,22 & Schumacher \\
+    \texttt{PhishingURL} & 79 & 18.982 & 5 & 2,16 & Grupo \\
+    \texttt{Satimage} & 36 & 6.430 & 6 & 2,45 & Grupo \\
+    \texttt{star\_classification} & 17 & 100.000 & 3 & 3,14 & Kaggle \\
+    \texttt{Student\_performance\_data} & 14 & 2.392 & 5 & 11,32 & Kaggle \\
+    \texttt{turk\_student\_eval\_data} & 30 & 5.820 & 5 & 3,03 & Schumacher \\
+    \texttt{wine} & 13 & 178 & 3 & 1,48 & UCI \\
+    \texttt{yeast\_data} & 8 & 1.299 & 4 & 2,84 & Schumacher \\
+    \hline
+\end{longtable}
+
+{\footnotesize Fonte: elaborado pelo autor.}
+\normalsize

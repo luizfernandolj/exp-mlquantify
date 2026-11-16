@@ -16,6 +16,8 @@ python figuras/tcc/gerar.py
 | `secoes-q1-q2.tex` | o texto das duas seções e das considerações finais |
 | `conclusoes.tex` | o capítulo de conclusões e trabalhos futuros |
 | `resumo.tex` | o resumo e as palavras-chave |
+| `introducao.tex` | o capítulo de introdução |
+| `apendice-conjuntos.tex` | o apêndice com os 132 conjuntos, gerado por `gerar_apendice.py` |
 
 ## Por que os números diferem dos do painel
 
