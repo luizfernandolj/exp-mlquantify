@@ -2562,6 +2562,100 @@ conjuntos de candidatos da familia de limiar. Sao escolhas de formulacao,
 cada uma defensavel, feitas por bibliotecas diferentes sobre o mesmo nome de
 metodo.
 
+### As figuras do painel de comparacao
+
+O `painel_bibliotecas.py`, na raiz, compara a mlquantify contra cada outra
+biblioteca **no mesmo metodo**, pareado por conjunto e tamanho de amostra,
+usando o `expand_aliases` do `expq.aggregate` para casar `PACC`/`GPACC` e
+`ACC`/`GACC` como a analise oficial casa. Ele imprime as tabelas, grava os
+csv e monta um html de um arquivo so:
+
+```bash
+python painel_bibliotecas.py --run-id final-pareado \
+    --custo-run custo-final5 --out-dir C:/Users/luiz_/exp-mlquantify-run
+```
+
+Sao quatro figuras, e cada uma existe porque responde uma pergunta que as
+outras nao respondem:
+
+| figura | pergunta | forma escolhida |
+| --- | --- | --- |
+| `_equivalencia` | as implementacoes concordam dentro de +-0,01? | floresta: ponto no Hodges-Lehmann, barra no IC de 95% |
+| `_concordancia` | a discordancia e constante ou cresce com a dificuldade? | Bland-Altman, y simetrico-logaritmico com o joelho na margem |
+| `_tempo` / `_memoria` | quanto a mlquantify cobra no conjunto tipico? | floresta da razao, em log2 |
+| `_perfil_tempo` / `_perfil_memoria` | em que fracao dos problemas cada uma fica dentro de um fator? | perfil de desempenho de Dolan-More |
+
+Todas se leem **impressas em preto e branco**, que e um requisito e nao um
+enfeite: a forma do marcador diz a biblioteca nas florestas, o tracejado
+diz a biblioteca nos perfis, e o preenchimento do marcador diz o veredito.
+A cor e redundante com isso, e os tons foram escolhidos com luminancias
+distintas.
+
+#### O que o perfil de desempenho mostrou, e as outras nao mostravam
+
+O perfil e o grafico que Dolan e More (2002) propuseram para benchmark de
+otimizadores, pela mesma razao que aqui vale: media e mediana sao dominadas
+por poucos problemas caros. Cada problema e um par (metodo, conjunto), com
+os quatro tamanhos de amostra entrando pela mediana; o eixo x e o fator em
+relacao a biblioteca mais barata **naquele problema** e o y e a fracao de
+problemas dentro do fator.
+
+Tempo de estimacao, com a `custo-final5` aplicada nos 12 metodos que ela
+mediu:
+
+| | mais barata (tau=1) | ate 2x | ate 4x | ate 8x | pior caso |
+| --- | --- | --- | --- | --- | --- |
+| mlquantify (contra a quapy) | 42,5% | 77,9% | **93,3%** | **99,5%** | 42x |
+| quapy | **57,5%** | 76,1% | 84,3% | 88,4% | 28x |
+| mlquantify (contra a qlib) | 44,5% | 64,8% | 81,3% | **89,0%** | 523x |
+| quantificationlib | **55,5%** | **76,3%** | **86,8%** | 87,1% | 116x |
+| mlquantify (contra a qunfold) | **99,7%** | **99,9%** | **99,9%** | **99,9%** | 8x |
+| qunfold | 0,3% | 2,0% | 6,7% | 15,3% | 735x |
+
+**As curvas se cruzam, e e esse o achado.** Contra a quapy, a quapy e a mais
+barata em 57,5% dos problemas -- ela ganha mais vezes --, mas a partir de
+tau ~ 2 a mlquantify cobre mais, e em tau = 8 a distancia e de 11 pontos
+(99,5% contra 88,4%). Contra a quantificationlib o cruzamento vem mais
+tarde, perto de tau = 8. A floresta de razao nao podia dizer isso: ela
+resume cada par numa mediana, e a mediana fica do lado de quem ganha mais
+vezes.
+
+**Mas o pior caso continua sendo da mlquantify nos dois**, e o perfil diz
+isso na mesma figura: 42x contra os 28x da quapy, 523x contra os 116x da
+qlib. As duas leituras sao verdadeiras e se completam -- a mlquantify e
+mais consistente no miolo e tem a cauda mais longa.
+
+Os casos da cauda nao estao espalhados, estao concentrados, e a
+concentracao nomeia a causa:
+
+* **contra a quantificationlib, sao conjuntos com muitas classes.** As seis
+  piores razoes sao `PACC` (523x), `TAC` (309x), `PWKAC` (173x) e `FM`
+  (153x) em `Walking.csv`, que tem **22 classes**, mais `PACC` em
+  `amazon-commerce-reviews` (10 classes, 274x) e `PWKAC` em `letter.csv`
+  (26 classes, 80x). E o custo do um-contra-resto da mlquantify, que ajusta
+  um quantificador por classe onde a qlib resolve uma vez so;
+* **contra a quapy, sao conjuntos grandes com a familia de limiar.** As
+  seis piores sao `MAX`, `T50` e `X` em `phphQEck0.csv` (245 mil
+  instancias) e `Mosquitoes.csv` (158 mil), entre 33x e 42x. Vale lembrar
+  que esses numeros ja sao os da `custo-final5`, isto e, **depois** do
+  icamento da ROC, e com a varredura `"unique"`, que e a mais cara das
+  duas; com `score_edges="fixed"` a cauda deve encolher, e a remedicao esta
+  pendente.
+
+Na memoria nao ha cruzamento: a mlquantify e a mais barata em 87,0% dos
+problemas contra a quantificationlib, 60,9% contra a quapy e 92,8% contra a
+qunfold.
+
+**Ressalva sobre o quarto painel.** O perfil canonico, com as quatro curvas
+sobre o mesmo conjunto de problemas, exige que todas tenham medido o mesmo
+par (metodo, conjunto), e so **tres metodos existem nas quatro bibliotecas**
+(`EDx`, `EDy`, `EMQ`), o que deixa 404 problemas. Nesse recorte a quapy
+domina sem ambiguidade (59,7% em tau=1 e 99,0% ate 2x, com pior caso de
+apenas 2x). O painel serve como ilustracao do formato canonico; a amostra e
+pequena e e um recorte enviesado do catalogo, entao nao sustenta conclusao
+geral. Os tres paineis pareados, que usam todos os problemas que cada par
+tem em comum, e que sustentam.
+
 ---
 
 ## 12. Organizacao do codigo
