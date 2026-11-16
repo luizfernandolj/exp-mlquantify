@@ -2664,11 +2664,21 @@ estimada por amostra, e eles **nao sobrevivem** na execucao oficial: a
 `summary`. Para uma metrica nova seria preciso reexecutar -- so a
 estimacao, que e a parte barata, guardando as amostras.
 
-E a margem de equivalencia **nao se transporta**: o +-0,01 e um ponto
-percentual de prevalencia, isto e, esta em unidade de AE. Para as outras
-tres ela precisa ser escolhida de novo, antes de olhar os dados; o script
-avisa quando o erro nao e o `mae` e a margem ficou no padrao. Ate la, o que
-sai da figura e a diferenca e o intervalo, nao o veredito.
+E a margem de equivalencia **nao se transporta pelo numero, e sim pela
+decisao**. O +-0,01 e um ponto percentual de prevalencia, na unidade do AE.
+Em MSE a mesma decisao vale `0,01^2 = 0,0001`, porque uma estimativa errada
+em um ponto percentual em toda classe tem esse erro quadratico -- a margem
+sai da **definicao da medida**, nao dos resultados, e no codigo esta
+literal: `MARGENS = {"mae": MARGEM, "mse": MARGEM ** 2}`. Nao ha padrao de
+literatura para a margem de um erro quadratico; o que a metodologia exige e
+fixa-la antes de olhar os dados e dizer de onde veio.
+
+Para `mrae` e `nkld` nao existe transposicao honesta de um ponto percentual
+-- uma e erro relativo, a outra e divergencia --, entao o script **recusa**
+rodar o teste sem um `--margem` explicito, em vez de usar um numero
+qualquer. Duas margens foram consideradas e descartadas para o MSE: a
+propria 0,01, que aprova os 39 pares e portanto nada afirma, e uma tirada
+do nivel de erro observado, que seria circular.
 
 Sao cinco figuras, e cada uma existe porque responde uma pergunta que as
 outras nao respondem:

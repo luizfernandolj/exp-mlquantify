@@ -261,6 +261,19 @@ def imprimir(resumo: pd.DataFrame, pares: pd.DataFrame) -> None:
 #: disso a diferenca nao muda decisao nenhuma tomada com a estimativa.
 MARGEM = 0.01
 
+#: A mesma decisao, escrita na unidade de cada medida. Nao ha padrao de
+#: literatura para a margem de um erro quadratico -- a orientacao corrente e
+#: so fixa-la antes de olhar os dados e dizer de onde ela vem --, entao ela
+#: sai da **definicao da medida** e nao dos resultados: uma estimativa
+#: errada em exatamente um ponto percentual em toda classe tem AE = 0,01 e
+#: SE = 0,01^2. Derivar a margem do erro observado seria circular, porque o
+#: dado que ela julga entraria na escolha dela.
+#:
+#: MRAE e NKLD ficam de fora de proposito: nao ha transposicao honesta de um
+#: ponto percentual para um erro relativo nem para uma divergencia, entao
+#: quem usa essas medidas tem de escolher a margem e dizer por que.
+MARGENS = {"mae": MARGEM, "mse": MARGEM ** 2}
+
 
 def _walsh(d: np.ndarray) -> np.ndarray:
     """Medias de Walsh, (d_i + d_j)/2 com i <= j."""
@@ -1718,11 +1731,22 @@ def main() -> int:
     p.add_argument("--pares-concordancia", type=int, default=8, metavar="N",
                    help="quantos pares entram no grafico de concordancia, "
                         "do maior espalhamento para o menor (padrao: 8)")
-    p.add_argument("--margem", type=float, default=MARGEM, metavar="X",
-                   help=f"margem de equivalencia do TOST (padrao: {MARGEM})")
+    p.add_argument("--margem", type=float, default=None, metavar="X",
+                   help="margem de equivalencia do TOST; sem ela, a da "
+                        "medida de erro escolhida (MAE 0,01; MSE 0,0001)")
     p.add_argument("--sem-teste", action="store_true",
                    help="so o painel de custo, sem o teste e o grafico")
     args = p.parse_args()
+
+    if args.margem is None:
+        if args.erro not in MARGENS:
+            raise SystemExit(
+                f"nao ha margem definida para {args.erro.upper()}: um ponto "
+                f"percentual de prevalencia nao se transpoe para um erro "
+                f"relativo nem para uma divergencia.\n"
+                f"Escolha uma com --margem, antes de olhar os dados, e diga "
+                f"no texto de onde ela vem.")
+        args.margem = MARGENS[args.erro]
 
     sys.path.insert(0, str(Path(__file__).resolve().parent))
     raiz = Path(args.out_dir).resolve() if args.out_dir else Path("results")
@@ -1741,14 +1765,6 @@ def main() -> int:
 
     destino = Path(args.html) if args.html else run_dir / "painel_bibliotecas.html"
     destino.parent.mkdir(parents=True, exist_ok=True)
-
-    if args.erro != "mae" and args.margem == MARGEM:
-        print(f"\n  AVISO: a margem padrao de {MARGEM:g} e um ponto "
-              f"percentual de prevalencia, isto e, esta em unidade de AE.\n"
-              f"  Para {args.erro.upper()} ela nao tem esse significado e "
-              f"precisa ser escolhida de novo, com --margem,\n"
-              f"  antes de olhar os dados. O que sai dela ate la e a "
-              f"diferenca e o intervalo, nao o veredito.")
 
     teste, svg, svg_ba, svg_custo, svg_rank = None, None, None, [], None
     if not args.sem_teste:
