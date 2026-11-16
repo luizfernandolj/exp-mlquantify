@@ -787,6 +787,153 @@ def figura_bland_altman(dif: pd.DataFrame, teste: pd.DataFrame, margem: float,
     return _salvar(fig, destino, extras=[leg])
 
 
+#: Cor e tracejado da propria mlquantify nas figuras em que ela e uma curva
+#: entre outras, e nao o referencial. O tracejado e redundante com a cor,
+#: pela mesma razao das formas: a figura tem de sair num jornal em cinza.
+COR_MINHA = "#6b46c1"
+TRACOS = {
+    "mlquantify": "-",
+    "quapy": (0, (6, 3)),
+    "quantificationlib": (0, (1.5, 2)),
+    "qunfold": (0, (7, 2, 1.5, 2)),
+}
+
+
+def _custo_longo(pares: pd.DataFrame, coluna: str) -> pd.DataFrame:
+    """Uma linha por (metodo, conjunto, biblioteca) com o custo.
+
+    Reconstroi o formato longo a partir da tabela pareada, para que o custo
+    da mlquantify seja o mesmo que as outras figuras usam -- inclusive com a
+    execucao otimizada por cima, quando houver.
+    """
+    a, b = f"{coluna}_minha", f"{coluna}_dela"
+    if a not in pares or b not in pares:
+        return pd.DataFrame()
+    chave = ["metodo", "dataset_id"]
+    # os quatro tamanhos de amostra do mesmo conjunto nao sao observacoes
+    # independentes: entram pela mediana, como no teste de custo
+    delas = (pares[pares[b] > 0].groupby(chave + ["biblioteca"], as_index=False)
+             [b].median().rename(columns={b: "custo"}))
+    minha = (pares[pares[a] > 0].groupby(chave, as_index=False)[a].median()
+             .rename(columns={a: "custo"}))
+    minha["biblioteca"] = MINHA
+    return pd.concat([delas, minha], ignore_index=True)
+
+
+def _perfil(largura: pd.DataFrame, libs: list[str]):
+    """Perfil de Dolan-More: fracao dos problemas dentro de um fator tau.
+
+    ``largura`` tem um problema por linha e uma biblioteca por coluna. So
+    entram os problemas em que todas as bibliotecas da lista mediram.
+    """
+    sub = largura[libs].dropna()
+    sub = sub[(sub > 0).all(axis=1)]
+    if sub.empty:
+        return {}, 0
+    melhor = sub.min(axis=1)
+    return {lib: np.sort((sub[lib] / melhor).to_numpy()) for lib in libs}, \
+        len(sub)
+
+
+def figura_perfil(pares: pd.DataFrame, coluna: str, destino: Path) -> str:
+    """Perfil de desempenho de custo, um painel por biblioteca rival.
+
+    Media e mediana respondem "quanto custa no conjunto tipico"; esta figura
+    responde outra coisa: **em que fracao dos problemas cada biblioteca fica
+    dentro de um fator tau da mais barata**. E o grafico que Dolan e More
+    propuseram para benchmark de otimizadores, justamente porque uns poucos
+    problemas caros dominam qualquer media. A leitura e direta: a curva que
+    sobe mais rapido vence, o valor em tau=1 e a fracao de problemas em que
+    a biblioteca e a mais barata de todas, e onde a curva chega a 1 e o pior
+    caso dela.
+    """
+    import matplotlib
+
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+    from matplotlib.lines import Line2D
+    from matplotlib.ticker import FixedLocator, NullFormatter
+
+    longo = _custo_longo(pares, coluna)
+    if longo.empty:
+        return ""
+    largura = longo.pivot_table(index=["metodo", "dataset_id"],
+                                columns="biblioteca", values="custo")
+    rivais = [l for l in sorted(largura.columns) if l != MINHA]
+    if not rivais:
+        return ""
+    cores = dict(_cores_de(longo), **{MINHA: COR_MINHA})
+
+    # tres paineis pareados, mais o perfil de quatro curvas nos metodos que
+    # todas implementam
+    comuns = [MINHA] + rivais
+    paineis = [([MINHA, r], f"contra a {r}") for r in rivais]
+    if len(comuns) > 2 and not largura[comuns].dropna().empty:
+        paineis.append((comuns, "todas, nos metodos que as quatro tem"))
+
+    fig, eixos = plt.subplots(1, len(paineis), dpi=200, squeeze=False,
+                              sharey=True,
+                              figsize=(4.3 * len(paineis), 4.4))
+    fig.patch.set_facecolor(FUNDO)
+
+    limite = 1.0
+    curvas = []
+    for libs, _ in paineis:
+        razoes, n = _perfil(largura, libs)
+        curvas.append((razoes, n))
+        for v in razoes.values():
+            if len(v):
+                limite = max(limite, float(v[-1]))
+    limite = min(limite, 2.0 ** 12) * 1.15
+
+    for eixo, (libs, rotulo), (razoes, n) in zip(eixos[0], paineis, curvas):
+        _estilo(eixo, fonte=13)
+        eixo.grid(axis="y", color=GRADE, lw=0.7)
+        eixo.set_xscale("log", base=2)
+        for lib in libs:
+            v = razoes.get(lib)
+            if v is None or not len(v):
+                continue
+            # degrau: a fracao so sobe quando um problema entra
+            x = np.concatenate(([1.0], v, [limite]))
+            y = np.concatenate(([0.0], np.arange(1, len(v) + 1) / len(v),
+                                [1.0]))
+            eixo.step(x, y, where="post", color=cores[lib], lw=2.6,
+                      ls=TRACOS.get(lib, "-"),
+                      label=lib, zorder=3,
+                      solid_capstyle="round")
+        eixo.set_title(rotulo, fontsize=13.5, color=TINTA, pad=8)
+        eixo.annotate(f"{n} problemas", xy=(0.97, 0.04),
+                      xycoords="axes fraction", fontsize=11.5, color=FRACO,
+                      ha="right", va="bottom",
+                      bbox=dict(facecolor=FUNDO, edgecolor="none", pad=2))
+        eixo.set_xlabel("fator $\\tau$ em relacao a mais barata",
+                        fontsize=13, color=TINTA, labelpad=8)
+
+    marcas = [2.0 ** e for e in range(0, 13) if 2.0 ** e <= limite]
+    for eixo in eixos[0]:
+        eixo.set_xlim(1.0, limite)
+        eixo.set_ylim(0, 1.02)
+        eixo.xaxis.set_major_locator(FixedLocator(marcas))
+        eixo.set_xticklabels([f"{m:g}" for m in marcas], fontsize=12.5)
+        eixo.xaxis.set_minor_formatter(NullFormatter())
+    eixos[0][0].set_yticks([0, 0.25, 0.5, 0.75, 1.0])
+    eixos[0][0].set_yticklabels(["0", "25%", "50%", "75%", "100%"],
+                                fontsize=12.5)
+    eixos[0][0].set_ylabel("fracao dos problemas", fontsize=13, color=TINTA,
+                           labelpad=8)
+
+    chaves = [Line2D([], [], color=cores[l], lw=2.6, ls=TRACOS.get(l, "-"),
+                     label=l) for l in [MINHA] + rivais]
+    leg = fig.legend(handles=chaves, loc="lower left", frameon=False,
+                     fontsize=13, ncols=len(chaves), handletextpad=0.6,
+                     handlelength=2.8, borderpad=0.0,
+                     bbox_to_anchor=(0.06, 0.975),
+                     bbox_transform=fig.transFigure, title=None)
+    fig.tight_layout(rect=(0, 0, 1, 0.965))
+    return _salvar(fig, destino, extras=[leg])
+
+
 def figura_custo(tabela: pd.DataFrame, titulo: str, destino: Path) -> str:
     """Razao de custo por par, em escala logaritmica, com IC de 95%."""
     import matplotlib
@@ -1244,6 +1391,15 @@ def main() -> int:
              "Memoria na estimacao, maximo alocado alem da linha de base. "
              "Mesma leitura do grafico do tempo."),
         ):
+            legenda_perfil = (
+                "Perfil de desempenho (Dolan-More) de {titulo}. Cada problema "
+                "e um par (metodo, conjunto de dados); o eixo x e o fator em "
+                "relacao a biblioteca mais barata naquele problema e o y e a "
+                "fracao de problemas dentro desse fator. O valor em 1 e a "
+                "fracao de problemas em que a biblioteca e a mais barata de "
+                "todas, e onde a curva chega ao topo e o pior caso dela. "
+                "Serve porque media e mediana sao dominadas por poucos "
+                "problemas caros, e esta leitura nao e.")
             tabela = testar_custo(pares, coluna)
             if tabela.empty:
                 continue
@@ -1255,6 +1411,13 @@ def main() -> int:
                           index=False)
             print(f"grafico: {png}")
             imprimir_custo(tabela, titulo)
+
+            png = destino.with_name(f"{destino.stem}_perfil_{nome}.png")
+            svg_perfil = figura_perfil(pares, coluna, png)
+            if svg_perfil:
+                svg_custo.append((svg_perfil, legenda_perfil.format(
+                    titulo=titulo.lower())))
+                print(f"grafico: {png}")
 
     destino.write_text(
         html_painel(resumo, pares, args.run_id, args.custo_run,
