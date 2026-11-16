@@ -934,6 +934,207 @@ def figura_perfil(pares: pd.DataFrame, coluna: str, destino: Path) -> str:
     return _salvar(fig, destino, extras=[leg])
 
 
+# ---------------------------------------------------------------------------
+# ranking: Friedman e Nemenyi sobre o custo
+# ---------------------------------------------------------------------------
+#
+# As outras figuras respondem "as duas concordam" e "quanto uma cobra em
+# relacao a outra". Esta responde a pergunta que falta -- **qual e a
+# melhor** --, que e uma pergunta de ordenacao e nao de equivalencia, e para
+# ela o instrumento consagrado e o de Demsar (2006): posto medio por bloco,
+# Friedman para dizer se ha diferenca, e Nemenyi para dizer entre quem.
+#
+# Um bloco e um par (metodo, conjunto de dados). O desenho exige bloco
+# completo -- todas as bibliotecas comparadas tem de ter medido o mesmo
+# bloco --, e e por isso que a figura traz dois recortes em vez de um: as
+# quatro bibliotecas so coincidem em tres metodos, enquanto tres delas
+# coincidem em sete.
+
+
+def _cd_nemenyi(k: int, n: int, alfa: float = 0.05) -> float:
+    """Diferenca critica de Nemenyi para k tratamentos e n blocos."""
+    from scipy.stats import studentized_range
+
+    q = float(studentized_range.ppf(1 - alfa, k, np.inf)) / np.sqrt(2.0)
+    return q * np.sqrt(k * (k + 1) / (6.0 * n))
+
+
+def _grupos_completos(largura: pd.DataFrame, minimo: int = 30):
+    """Subconjuntos de bibliotecas com blocos completos, do maior ao menor.
+
+    So interessam os que contem a mlquantify e pelo menos tres bibliotecas
+    (com duas, Friedman nao se aplica e quem responde e o Wilcoxon, que ja
+    esta nas florestas de custo). Devolve no maximo um grupo por tamanho: o
+    de mais blocos.
+    """
+    import itertools
+
+    libs = list(largura.columns)
+    melhores = {}
+    for k in range(len(libs), 2, -1):
+        for grupo in itertools.combinations(libs, k):
+            if MINHA not in grupo:
+                continue
+            bloco = largura[list(grupo)].dropna()
+            if len(bloco) < minimo:
+                continue
+            if k not in melhores or len(bloco) > len(melhores[k][1]):
+                melhores[k] = (list(grupo), bloco)
+    return [melhores[k] for k in sorted(melhores, reverse=True)]
+
+
+def ranking_custo(pares: pd.DataFrame, coluna: str, alfa: float = 0.05):
+    """Posto medio, Friedman e Nemenyi por recorte de bibliotecas."""
+    from scipy.stats import friedmanchisquare
+
+    longo = _custo_longo(pares, coluna)
+    if longo.empty:
+        return []
+    largura = longo.pivot_table(index=["metodo", "dataset_id"],
+                                columns="biblioteca", values="custo")
+    saida = []
+    for grupo, bloco in _grupos_completos(largura):
+        # posto 1 para a mais barata do bloco; empate recebe a media
+        postos = bloco.rank(axis=1, ascending=True)
+        medios = postos.mean().sort_values()
+        stat, p = friedmanchisquare(*[bloco[c].to_numpy() for c in grupo])
+        saida.append({
+            "grupo": grupo,
+            "n_blocos": len(bloco),
+            "metodos": sorted({m for m, _ in bloco.index}),
+            "postos": medios,
+            "friedman": float(stat),
+            "p": float(p),
+            "cd": _cd_nemenyi(len(grupo), len(bloco), alfa),
+            "alfa": alfa,
+        })
+    return saida
+
+
+def _cliques(medios: pd.Series, cd: float):
+    """Grupos de bibliotecas que o Nemenyi nao separa, sem repetir."""
+    nomes = list(medios.index)
+    achados = []
+    for i in range(len(nomes)):
+        j = i
+        while j + 1 < len(nomes) and medios.iloc[j + 1] - medios.iloc[i] < cd:
+            j += 1
+        if j > i:
+            achados.append((i, j))
+    # tira o intervalo contido em outro
+    return [a for a in achados
+            if not any(b != a and b[0] <= a[0] and a[1] <= b[1]
+                       for b in achados)]
+
+
+def imprimir_ranking(resultados: list, titulo: str) -> None:
+    if not resultados:
+        return
+    print()
+    print("=" * 86)
+    print(f"RANKING DE {titulo.upper()}: FRIEDMAN E NEMENYI "
+          "(bloco = metodo x conjunto)")
+    print("=" * 86)
+    for r in resultados:
+        print(f"\n  {len(r['grupo'])} bibliotecas, {r['n_blocos']} blocos, "
+              f"{len(r['metodos'])} metodos ({', '.join(r['metodos'])})")
+        print(f"  Friedman: estatistica {r['friedman']:.1f}, "
+              f"p = {r['p']:.2e}   |   CD de Nemenyi = {r['cd']:.3f}")
+        for nome, posto in r["postos"].items():
+            print(f"    {posto:>6.3f}  {nome}")
+        juntos = [" ~ ".join(r["postos"].index[i:j + 1])
+                  for i, j in _cliques(r["postos"], r["cd"])]
+        print("    sem diferenca significativa: "
+              + ("; ".join(juntos) if juntos else "nenhum par"))
+
+
+def figura_ranking(pares: pd.DataFrame, medidas: list, destino: Path) -> str:
+    """Diagramas de diferenca critica, uma linha por medida de custo.
+
+    O eixo e o posto medio, a melhor a esquerda. A barra horizontal junta as
+    bibliotecas que o Nemenyi **nao** separa ao nivel de 5%: estar sob a
+    mesma barra e nao ter evidencia de diferenca, que nao e o mesmo que ter
+    evidencia de igualdade -- para essa afirmacao e que existe a figura de
+    equivalencia.
+    """
+    import matplotlib
+
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+    from matplotlib.lines import Line2D
+
+    linhas = []
+    for coluna, titulo in medidas:
+        resultados = ranking_custo(pares, coluna)
+        for r in resultados:
+            linhas.append((titulo, r))
+    if not linhas:
+        return ""
+
+    cores = dict(_cores_de(pd.DataFrame({"biblioteca": [l for _, r in linhas
+                                                        for l in r["grupo"]]})),
+                 **{MINHA: COR_MINHA})
+
+    colunas = max(1, len(linhas) // len({t for t, _ in linhas}))
+    fileiras = int(np.ceil(len(linhas) / colunas))
+    fig, eixos = plt.subplots(fileiras, colunas, squeeze=False, dpi=200,
+                              figsize=(6.2 * colunas, 2.9 * fileiras))
+    fig.patch.set_facecolor(FUNDO)
+
+    for eixo, (titulo, r) in zip(eixos.ravel(), linhas):
+        medios, cd, k = r["postos"], r["cd"], len(r["grupo"])
+        eixo.set_facecolor(FUNDO)
+        for lado in ("left", "right", "bottom"):
+            eixo.spines[lado].set_visible(False)
+        eixo.spines["top"].set_color(TINTA)
+        eixo.xaxis.set_ticks_position("top")
+        fileira = 0.62
+        # as barras do Nemenyi ficam logo abaixo do eixo, atravessadas pelas
+        # hastes, como no diagrama original de Demsar
+        altura_cliques = 0.16 * (1 + len(_cliques(medios, cd)))
+        base_rotulos = altura_cliques + 0.30
+        eixo.set_xlim(1 - 0.12 * k, k + 0.12 * k)
+        eixo.set_ylim(base_rotulos + fileira * (np.ceil(k / 2) - 1) + 0.45,
+                      -0.45)
+        eixo.set_yticks([])
+        eixo.set_xticks(list(range(1, k + 1)))
+        eixo.tick_params(colors=TINTA, labelsize=13, length=5)
+
+        for i, (nome, posto) in enumerate(medios.items()):
+            esquerda = i < len(medios) / 2
+            y = fileira * (i if esquerda else len(medios) - 1 - i)                 + base_rotulos
+            ponta = eixo.get_xlim()[0] if esquerda else eixo.get_xlim()[1]
+            eixo.plot([posto, posto], [0, y], color=cores[nome], lw=2.0,
+                      solid_capstyle="round")
+            eixo.plot([posto, ponta], [y, y], color=cores[nome], lw=2.0,
+                      solid_capstyle="round")
+            eixo.annotate(f"{nome}  ({posto:.2f})",
+                          xy=(ponta, y - 0.12), fontsize=12.5, color=TINTA,
+                          ha="left" if esquerda else "right", va="bottom")
+
+        for d, (i, j) in enumerate(_cliques(medios, cd)):
+            y = 0.16 * (d + 1)
+            eixo.plot([medios.iloc[i] - 0.03, medios.iloc[j] + 0.03], [y, y],
+                      color=TINTA, lw=4.5, solid_capstyle="round")
+
+        eixo.set_title(f"{titulo} -- {k} bibliotecas, {r['n_blocos']} blocos\n"
+                       f"CD = {cd:.2f}   Friedman p = {r['p']:.1e}",
+                       fontsize=13, color=TINTA, pad=26)
+
+    for eixo in eixos.ravel()[len(linhas):]:
+        eixo.set_visible(False)
+
+    nota = Line2D([], [], color=TINTA, lw=4.5,
+                  label="unidas: o Nemenyi nao separa (5%)")
+    leg = fig.legend(handles=[nota], loc="lower left", frameon=False,
+                     fontsize=12.5, bbox_to_anchor=(0.06, 0.0),
+                     bbox_transform=fig.transFigure, borderpad=0.0)
+    # folga entre as colunas: as hastes vao ate a borda do eixo, e sem isso
+    # o rotulo da direita de um painel encosta no da esquerda do seguinte
+    fig.tight_layout(rect=(0, 0.04, 1, 1), w_pad=4.0)
+    return _salvar(fig, destino, extras=[leg])
+
+
 def figura_custo(tabela: pd.DataFrame, titulo: str, destino: Path) -> str:
     """Razao de custo por par, em escala logaritmica, com IC de 95%."""
     import matplotlib
@@ -1107,7 +1308,8 @@ def html_painel(resumo: pd.DataFrame, pares: pd.DataFrame, run_id: str,
                 custo_run: str | None, teste: pd.DataFrame | None = None,
                 svg: str | None = None, margem: float = MARGEM,
                 erro: str = "mae", svg_custo: list | None = None,
-                svg_ba: str | None = None) -> str:
+                svg_ba: str | None = None,
+                svg_rank: str | None = None) -> str:
     res = resumo.copy()
     res["veredito"] = res.apply(veredito, axis=1)
     caras, erradas, ganhos = _classificar(res)
@@ -1245,6 +1447,30 @@ duas bibliotecas.</p>
 {"".join(f'<figure>{s}<figcaption>{html.escape(c)}</figcaption></figure>'
          for s, c in svg_custo)}"""
 
+    if svg_rank:
+        bloco_teste += f"""
+<h2>Ranking: qual biblioteca custa menos</h2>
+<p class="sub">As figuras acima comparam a mlquantify contra uma rival de
+cada vez. Esta responde a pergunta de ordenacao -- <b>qual e a melhor</b> --
+com o procedimento de Demsar (2006): cada bloco e um par (metodo, conjunto
+de dados), cada biblioteca recebe o posto dela dentro do bloco, o Friedman
+diz se ha diferenca entre os postos medios e o Nemenyi diz entre quem. O
+eixo e o posto medio e a melhor fica a <b>esquerda</b>.</p>
+<figure>{svg_rank}<figcaption>A barra horizontal grossa une as bibliotecas
+que o Nemenyi <b>nao</b> separa ao nivel de 5%. Estar sob a mesma barra e
+falta de evidencia de diferenca, e nao evidencia de igualdade: para essa
+afirmacao serve a figura de equivalencia, que e o teste com hipotese
+invertida. Sao dois recortes porque o desenho exige bloco completo -- as
+quatro bibliotecas so coincidem em tres metodos, enquanto tres delas
+coincidem em sete.</figcaption></figure>
+<p class="nota">Duas ressalvas de leitura. O posto e <b>relativo ao bloco</b>:
+ele diz quem foi mais barata, nunca por quanto -- uma vitoria por 1% e uma
+por 100x valem o mesmo posto, e e para isso que existem as florestas de
+razao e o perfil de desempenho. E o conjunto comparado nao e neutro: o
+Nemenyi perde poder conforme entram mais bibliotecas, e o posto medio de
+cada uma depende de quem mais esta na comparacao, de modo que os dois
+recortes nao sao duas medidas do mesmo numero.</p>"""
+
     nota_custo = ""
     if custo_run:
         nota_custo = (f' O custo da mlquantify vem de <code>'
@@ -1362,7 +1588,7 @@ def main() -> int:
     destino = Path(args.html) if args.html else run_dir / "painel_bibliotecas.html"
     destino.parent.mkdir(parents=True, exist_ok=True)
 
-    teste, svg, svg_ba, svg_custo = None, None, None, []
+    teste, svg, svg_ba, svg_custo, svg_rank = None, None, None, [], None
     if not args.sem_teste:
         teste = testar(pares, erro=args.erro, margem=args.margem)
         if not teste.empty:
@@ -1419,10 +1645,20 @@ def main() -> int:
                     titulo=titulo.lower())))
                 print(f"grafico: {png}")
 
+        medidas = [("tempo_estimacao_total_s", "Tempo de estimacao"),
+                   ("memoria_estimacao_mb", "Memoria na estimacao")]
+        for coluna, titulo in medidas:
+            imprimir_ranking(ranking_custo(pares, coluna), titulo)
+        png = destino.with_name(destino.stem + "_ranking.png")
+        svg_rank = figura_ranking(pares, medidas, png)
+        if svg_rank:
+            print(f"grafico: {png}")
+
     destino.write_text(
         html_painel(resumo, pares, args.run_id, args.custo_run,
                     teste=teste, svg=svg, margem=args.margem,
-                    erro=args.erro, svg_custo=svg_custo, svg_ba=svg_ba),
+                    erro=args.erro, svg_custo=svg_custo, svg_ba=svg_ba,
+                    svg_rank=svg_rank),
         encoding="utf-8")
     print(f"painel: {destino}")
     if args.csv:
