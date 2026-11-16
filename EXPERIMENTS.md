@@ -2665,7 +2665,7 @@ outras nao respondem:
 | `_concordancia` | a discordancia e constante ou cresce com a dificuldade? | Bland-Altman, y simetrico-logaritmico com o joelho na margem |
 | `_tempo` / `_memoria` | quanto a mlquantify cobra em relacao a cada rival? | floresta da razao, em log2 |
 | `_perfil_tempo` / `_perfil_memoria` | em que fracao dos problemas cada uma fica dentro de um fator? | perfil de desempenho de Dolan-More |
-| `_ranking` | **qual delas e a melhor?** | posto medio, Friedman e Nemenyi, em diagrama de diferenca critica |
+| `_ranking` | **qual par metodo+biblioteca e o melhor?** | caixas do posto por conjunto, cor e hachura pela biblioteca |
 
 As quatro primeiras comparam a mlquantify contra **uma rival de cada vez**,
 que e a forma pareada; so a ultima ordena as quatro ao mesmo tempo. A
@@ -2681,63 +2681,73 @@ diz a biblioteca nos perfis, e o preenchimento do marcador diz o veredito.
 A cor e redundante com isso, e os tons foram escolhidos com luminancias
 distintas.
 
-#### O ranking: qual biblioteca custa menos
+#### O ranking dos pares metodo x biblioteca
 
-A pergunta de ordenacao nao e a mesma das outras figuras, e o instrumento
-dela e o de Demsar (2006): **posto medio por bloco**, Friedman para dizer se
-ha diferenca entre os postos e Nemenyi para dizer entre quem. Um bloco e um
-par (metodo, conjunto de dados), e dentro do bloco cada biblioteca recebe o
-posto 1, 2, 3 ou 4 conforme o custo; empate recebe a media dos postos.
+As outras figuras comparam a mlquantify contra uma rival de cada vez, no
+mesmo metodo. Esta junta as duas variaveis num tratamento so -- o par
+`metodo/biblioteca` -- e ordena todos ao mesmo tempo, que e a pergunta de
+quem vai escolher o que usar: nao "as duas implementacoes concordam", e sim
+"qual par erra menos, ou sai mais barato".
 
-O desenho exige **bloco completo** -- toda biblioteca comparada tem de ter
-medido todo bloco --, e e por isso que sao dois recortes:
+**O bloco e o conjunto de dados.** Dentro de cada conjunto os 68 pares sao
+ordenados, o posto 1 fica com o melhor, e a caixa mostra a distribuicao dos
+postos daquele par entre os 131 conjuntos. Caixa **baixa e curta** e bom e
+constante; **baixa e comprida** e bom em media e instavel, que e uma
+informacao que a media de erro esconde por construcao.
 
-| recorte | blocos | metodos |
+Ordenar exige bloco completo: num conjunto em que falte um par, os
+presentes ganhariam posto melhor so por ausencia. A cobertura e quase
+cheia -- 74 pares x 142 conjuntos com 2,3% de celulas vazias --, entao o
+corte custa pouco:
+
+| piso de cobertura | pares mantidos | conjuntos completos |
 | --- | --- | --- |
-| as quatro bibliotecas | 404 | `EDx`, `EDy`, `EMQ` |
-| sem a qunfold | 969 | `CC`, `EDx`, `EDy`, `EMQ`, `HDx`, `PACC`, `PCC` |
+| 80% | 72 | 115 |
+| **95% (padrao)** | **68** | **131** |
+| 98% | 48 | 138 |
+| 100% | 14 | 142 |
 
-Resultado, com o custo da mlquantify vindo da `custo-final5` nos 12 metodos
-que ela mediu:
+O padrao e 95% (`--piso-cobertura`), que e o joelho da curva. Quem fica de
+fora sai **nomeado** na saida do script, nao em silencio: `SMM/quapy` e
+`SORD/quantificationlib`, que falham em um quarto dos conjuntos, e os pares
+de alta dimensionalidade da qunfold.
 
-| medida | recorte | postos medios | o que o Nemenyi nao separa |
-| --- | --- | --- | --- |
-| tempo de estimacao | 4 libs | quapy 1,51; **mlquantify 2,21**; quantificationlib 2,29; qunfold 3,99 | mlquantify ~ quantificationlib |
-| tempo de estimacao | 3 libs | quapy 1,89; **mlquantify 2,04**; quantificationlib 2,07 | mlquantify ~ quantificationlib |
-| memoria na estimacao | 4 libs | **mlquantify 1,60**; quapy 2,29; qunfold 2,42; quantificationlib 3,69 | quapy ~ qunfold |
-| memoria na estimacao | 3 libs | **mlquantify 1,47**; quapy 1,59; quantificationlib 2,93 | nenhum par |
+**Os dez primeiros de cada medida:**
 
-Leitura: **no tempo a quapy e a primeira e a mlquantify empata com a
-quantificationlib**, nos dois recortes; **na memoria a mlquantify e a
-primeira**, nos dois, e com tres bibliotecas a separacao e limpa. A qunfold
-fica isolada em ultimo no tempo, com posto 3,99 de um maximo de 4, isto e,
-ela e a mais lenta em quase todo bloco em que aparece.
+| erro (MAE) | tempo de estimacao | memoria na estimacao |
+| --- | --- | --- |
+| `KDEyHD`/quapy 14,56 | `MLPE`/quapy 1,06 | `MLPE`/quapy 1,02 |
+| `KDEyHD`/mlquantify 14,56 | `MLPE`/mlquantify 1,94 | `MLPE`/mlquantify 1,98 |
+| `GKDEyML`/mlquantify 19,92 | `PCC`/quapy 6,07 | `MMD`/mlquantify 3,78 |
+| `KDEyML`/mlquantify 20,00 | `T50`/quapy 6,47 | `PCC`/quapy 7,10 |
+| `EDy`/qunfold 21,02 | `X`/quapy 6,47 | `PCC`/mlquantify 7,33 |
+| `EMQ`/mlquantify 21,30 | `MAX`/quapy 6,67 | `CC`/quapy 7,87 |
+| `KDEyML`/quapy 21,40 | `CC`/quapy 7,40 | `CC`/mlquantify 8,93 |
+| `EMQ`/quantificationlib 21,46 | `CC`/quantificationlib 8,18 | `HDx`/quapy 12,09 |
+| `EMQ`/quapy 21,63 | `CC`/mlquantify 8,53 | `EMQ`/quapy 12,70 |
+| `KDEyCS`/quapy 21,70 | `PCC`/quantificationlib 9,57 | `CC`/quantificationlib 12,50 |
 
-Os Friedman dao p entre 7,4e-05 e 2,9e-278, de modo que **a pergunta
-interessante nunca e se existe diferenca**, e sim entre quem -- que e o que
-a barra do Nemenyi responde.
+Duas leituras que a figura entrega de relance e as outras nao entregavam:
 
-**Tres ressalvas, que o texto precisa carregar junto com os numeros.**
+* **o metodo decide mais que a biblioteca.** No erro, os primeiros lugares
+  sao todos da familia KDEy e do EMQ, com as implementacoes **vizinhas** --
+  `KDEyHD` da quapy e da mlquantify empatam em 14,56, e as tres versoes do
+  `EMQ` ficam entre 21,30 e 21,63. Quem escolhe ganha muito mais trocando de
+  metodo do que trocando de biblioteca, que e a conclusao que o estudo
+  inteiro vinha sugerindo e que aqui se ve num grafico so;
+* **o `MLPE` e o contraexemplo util.** Ele e o primeiro nas duas medidas de
+  custo e o **ultimo** no erro (59,71), porque ignora a amostra de teste e
+  devolve a prevalencia de treino. Serve de piso: qualquer par que custe
+  mais que o `MLPE` esta pagando por olhar para os dados, e qualquer um que
+  erre mais que ele nao deveria existir.
 
-1. **O posto e relativo ao bloco e nao diz por quanto.** Uma vitoria por 1%
-   e uma por 100x valem o mesmo posto. Essa informacao esta na floresta de
-   razao e no perfil de desempenho, e e por isso que as tres figuras
-   convivem em vez de uma substituir as outras. O caso do `PACC` em
-   `Walking.csv` ilustra: no ranking e um bloco como qualquer outro, e na
-   razao e um 523x.
-2. **Estar sob a mesma barra e falta de evidencia de diferenca**, e nao
-   evidencia de igualdade. A afirmacao de igualdade continua sendo so do
-   teste de equivalencia, que e o de hipotese invertida. O empate entre a
-   mlquantify e a quantificationlib no tempo diz que o Nemenyi nao as
-   separa, nao que elas custam o mesmo.
-3. **O conjunto comparado nao e neutro.** O posto medio de cada biblioteca
-   depende de quem mais esta na comparacao, e o Nemenyi perde poder conforme
-   entram mais tratamentos -- a CD vai de 0,106 com tres bibliotecas para
-   0,233 com quatro. Os dois recortes, portanto, **nao sao duas medidas do
-   mesmo numero**. Ismail-Fawaz et al. (2023) fazem exatamente essa critica
-   ao diagrama de diferenca critica, e aqui ela se aplica ao pe da letra,
-   porque quem entra na comparacao e ditado por qual biblioteca implementa
-   qual metodo, nao por uma escolha de quem compara.
+**Ressalvas.** O posto e relativo ao bloco: diz quem foi melhor naquele
+conjunto, nunca por quanto -- uma vitoria por 1% e uma por 100x valem o
+mesmo posto, e para o tamanho da diferenca servem as florestas de razao e
+os perfis. E o conjunto de pares comparados nao e neutro: o posto de cada
+par depende de quais outros entraram, de modo que o ranking de erro e o de
+custo nao se somam num numero unico -- Ismail-Fawaz et al. (2023) fazem essa
+critica ao diagrama de diferenca critica, e ela vale igual aqui.
 
 #### O que o perfil de desempenho mostrou, e as outras nao mostravam
 

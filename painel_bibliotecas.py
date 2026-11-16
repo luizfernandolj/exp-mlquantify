@@ -935,203 +935,180 @@ def figura_perfil(pares: pd.DataFrame, coluna: str, destino: Path) -> str:
 
 
 # ---------------------------------------------------------------------------
-# ranking: Friedman e Nemenyi sobre o custo
+# ranking dos pares metodo x biblioteca
 # ---------------------------------------------------------------------------
 #
-# As outras figuras respondem "as duas concordam" e "quanto uma cobra em
-# relacao a outra". Esta responde a pergunta que falta -- **qual e a
-# melhor** --, que e uma pergunta de ordenacao e nao de equivalencia, e para
-# ela o instrumento consagrado e o de Demsar (2006): posto medio por bloco,
-# Friedman para dizer se ha diferenca, e Nemenyi para dizer entre quem.
+# As outras figuras comparam a mlquantify contra uma rival de cada vez, no
+# mesmo metodo. Esta junta as duas variaveis num tratamento so -- o par
+# ``metodo/biblioteca`` -- e ordena todos ao mesmo tempo, que e a pergunta
+# de quem vai escolher o que usar: nao "a implementacao concorda", e sim
+# "qual par entrega mais barato, ou erra menos".
 #
-# Um bloco e um par (metodo, conjunto de dados). O desenho exige bloco
-# completo -- todas as bibliotecas comparadas tem de ter medido o mesmo
-# bloco --, e e por isso que a figura traz dois recortes em vez de um: as
-# quatro bibliotecas so coincidem em tres metodos, enquanto tres delas
-# coincidem em sete.
+# O bloco e o conjunto de dados. Dentro de cada conjunto os pares sao
+# ordenados, o posto 1 fica com o melhor, e a caixa mostra a distribuicao
+# dos postos daquele par entre os conjuntos. Um par com caixa baixa e curta
+# e bom e constante; caixa baixa e comprida e bom em media e instavel, que e
+# uma informacao que a media de erro esconde.
+
+#: Hachura por biblioteca, para a figura se ler impressa em cinza. A cor
+#: continua, redundante.
+HACHURAS = {
+    "mlquantify": "",
+    "quapy": "///",
+    "quantificationlib": "...",
+    "qunfold": "xxx",
+}
 
 
-def _cd_nemenyi(k: int, n: int, alfa: float = 0.05) -> float:
-    """Diferenca critica de Nemenyi para k tratamentos e n blocos."""
-    from scipy.stats import studentized_range
+def _longo_total(ok: pd.DataFrame, pares: pd.DataFrame, coluna: str):
+    """Uma linha por (par, conjunto), com o custo corrigido quando houver.
 
-    q = float(studentized_range.ppf(1 - alfa, k, np.inf)) / np.sqrt(2.0)
-    return q * np.sqrt(k * (k + 1) / (6.0 * n))
-
-
-def _grupos_completos(largura: pd.DataFrame, minimo: int = 30):
-    """Subconjuntos de bibliotecas com blocos completos, do maior ao menor.
-
-    So interessam os que contem a mlquantify e pelo menos tres bibliotecas
-    (com duas, Friedman nao se aplica e quem responde e o Wilcoxon, que ja
-    esta nas florestas de custo). Devolve no maximo um grupo por tamanho: o
-    de mais blocos.
+    Parte da tabela crua, que tem **todos** os pares -- inclusive os metodos
+    que so uma biblioteca implementa, que a tabela pareada descarta. Depois,
+    se a execucao de custo otimizado foi aplicada, sobrescreve as linhas da
+    mlquantify com os valores dela.
     """
-    import itertools
+    if coluna not in ok.columns:
+        return pd.DataFrame()
+    base = ok[ok[coluna].notna()].copy()
+    # os quatro tamanhos de amostra do mesmo conjunto nao sao observacoes
+    # independentes: entram pela mediana
+    base = (base.groupby(["metodo", "biblioteca", "dataset_id"],
+                         as_index=False)[coluna].median()
+            .rename(columns={coluna: "valor"}))
 
-    libs = list(largura.columns)
-    melhores = {}
-    for k in range(len(libs), 2, -1):
-        for grupo in itertools.combinations(libs, k):
-            if MINHA not in grupo:
-                continue
-            bloco = largura[list(grupo)].dropna()
-            if len(bloco) < minimo:
-                continue
-            if k not in melhores or len(bloco) > len(melhores[k][1]):
-                melhores[k] = (list(grupo), bloco)
-    return [melhores[k] for k in sorted(melhores, reverse=True)]
+    a = f"{coluna}_minha"
+    if pares is not None and a in pares.columns:
+        minha = (pares[pares[a].notna()]
+                 .groupby(["metodo", "dataset_id"], as_index=False)[a].median()
+                 .rename(columns={a: "valor"}))
+        minha["biblioteca"] = MINHA
+        chave = ["metodo", "biblioteca", "dataset_id"]
+        base = (minha.set_index(chave)
+                .combine_first(base.set_index(chave)).reset_index())
+
+    base["par"] = base["metodo"] + "/" + base["biblioteca"]
+    return base
 
 
-def ranking_custo(pares: pd.DataFrame, coluna: str, alfa: float = 0.05):
-    """Posto medio, Friedman e Nemenyi por recorte de bibliotecas."""
-    from scipy.stats import friedmanchisquare
+def postos_dos_pares(ok: pd.DataFrame, pares: pd.DataFrame, coluna: str,
+                     piso: float = 0.95):
+    """Posto de cada par (metodo, biblioteca) dentro de cada conjunto.
 
-    longo = _custo_longo(pares, coluna)
+    Ordenar exige **bloco completo**: um conjunto em que falte um par daria
+    a ele um posto melhor so por ausencia. Como a cobertura e quase cheia --
+    2,3% de celulas vazias --, a perda e pequena: o piso de 95% mantem 68
+    dos 74 pares e 131 dos 142 conjuntos. Quem sai sao os pares que falham
+    muito, e eles saem **nomeados** no resumo impresso, nao em silencio.
+    """
+    longo = _longo_total(ok, pares, coluna)
     if longo.empty:
-        return []
-    largura = longo.pivot_table(index=["metodo", "dataset_id"],
-                                columns="biblioteca", values="custo")
-    saida = []
-    for grupo, bloco in _grupos_completos(largura):
-        # posto 1 para a mais barata do bloco; empate recebe a media
-        postos = bloco.rank(axis=1, ascending=True)
-        medios = postos.mean().sort_values()
-        stat, p = friedmanchisquare(*[bloco[c].to_numpy() for c in grupo])
-        saida.append({
-            "grupo": grupo,
-            "n_blocos": len(bloco),
-            "metodos": sorted({m for m, _ in bloco.index}),
-            "postos": medios,
-            "friedman": float(stat),
-            "p": float(p),
-            "cd": _cd_nemenyi(len(grupo), len(bloco), alfa),
-            "alfa": alfa,
-        })
-    return saida
+        return None, [], 0
+    largura = longo.pivot_table(index="dataset_id", columns="par",
+                                values="valor")
+    cobertura = largura.notna().mean()
+    fora = sorted(cobertura[cobertura < piso].index)
+    largura = largura[[c for c in largura.columns if c not in fora]].dropna()
+    if largura.empty or largura.shape[1] < 2:
+        return None, fora, 0
+    # posto 1 para o menor valor: erro e custo sao menor-melhor
+    return largura.rank(axis=1, ascending=True), fora, len(largura)
 
 
-def _cliques(medios: pd.Series, cd: float):
-    """Grupos de bibliotecas que o Nemenyi nao separa, sem repetir."""
-    nomes = list(medios.index)
-    achados = []
-    for i in range(len(nomes)):
-        j = i
-        while j + 1 < len(nomes) and medios.iloc[j + 1] - medios.iloc[i] < cd:
-            j += 1
-        if j > i:
-            achados.append((i, j))
-    # tira o intervalo contido em outro
-    return [a for a in achados
-            if not any(b != a and b[0] <= a[0] and a[1] <= b[1]
-                       for b in achados)]
-
-
-def imprimir_ranking(resultados: list, titulo: str) -> None:
-    if not resultados:
+def imprimir_ranking(postos: pd.DataFrame, fora: list, n: int,
+                     titulo: str) -> None:
+    if postos is None:
         return
+    medios = postos.mean().sort_values()
     print()
     print("=" * 86)
-    print(f"RANKING DE {titulo.upper()}: FRIEDMAN E NEMENYI "
-          "(bloco = metodo x conjunto)")
+    print(f"RANKING DE {titulo.upper()}: PARES METODO x BIBLIOTECA "
+          f"({len(medios)} pares, {n} conjuntos)")
     print("=" * 86)
-    for r in resultados:
-        print(f"\n  {len(r['grupo'])} bibliotecas, {r['n_blocos']} blocos, "
-              f"{len(r['metodos'])} metodos ({', '.join(r['metodos'])})")
-        print(f"  Friedman: estatistica {r['friedman']:.1f}, "
-              f"p = {r['p']:.2e}   |   CD de Nemenyi = {r['cd']:.3f}")
-        for nome, posto in r["postos"].items():
-            print(f"    {posto:>6.3f}  {nome}")
-        juntos = [" ~ ".join(r["postos"].index[i:j + 1])
-                  for i, j in _cliques(r["postos"], r["cd"])]
-        print("    sem diferenca significativa: "
-              + ("; ".join(juntos) if juntos else "nenhum par"))
+    print("posto medio, 1 = melhor; bloco = conjunto de dados")
+    print("\n  os dez melhores:")
+    for nome, posto in medios.head(10).items():
+        print(f"    {posto:>6.2f}  {nome}")
+    print("\n  os cinco piores:")
+    for nome, posto in medios.tail(5).items():
+        print(f"    {posto:>6.2f}  {nome}")
+    if fora:
+        print(f"\n  fora do ranking por cobertura abaixo do piso: "
+              f"{', '.join(fora)}")
 
 
-def figura_ranking(pares: pd.DataFrame, medidas: list, destino: Path) -> str:
-    """Diagramas de diferenca critica, uma linha por medida de custo.
+def figura_ranking(ok: pd.DataFrame, pares: pd.DataFrame, medidas: list,
+                   destino: Path, piso: float = 0.95) -> str:
+    """Caixas do posto de cada par metodo x biblioteca, uma linha por medida.
 
-    O eixo e o posto medio, a melhor a esquerda. A barra horizontal junta as
-    bibliotecas que o Nemenyi **nao** separa ao nivel de 5%: estar sob a
-    mesma barra e nao ter evidencia de diferenca, que nao e o mesmo que ter
-    evidencia de igualdade -- para essa afirmacao e que existe a figura de
-    equivalencia.
+    A caixa e a distribuicao dos postos entre os conjuntos de dados, e os
+    pares vao ordenados pelo posto mediano. A cor e a hachura dizem a
+    biblioteca.
     """
     import matplotlib
 
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
-    from matplotlib.lines import Line2D
+    from matplotlib.patches import Patch
 
-    linhas = []
+    painel = []
     for coluna, titulo in medidas:
-        resultados = ranking_custo(pares, coluna)
-        for r in resultados:
-            linhas.append((titulo, r))
-    if not linhas:
+        postos, fora, n = postos_dos_pares(ok, pares, coluna, piso)
+        if postos is not None:
+            painel.append((titulo, postos, n))
+    if not painel:
         return ""
 
-    cores = dict(_cores_de(pd.DataFrame({"biblioteca": [l for _, r in linhas
-                                                        for l in r["grupo"]]})),
+    libs = sorted({p.split("/")[1] for _, postos, _ in painel
+                   for p in postos.columns})
+    cores = dict(_cores_de(pd.DataFrame({"biblioteca": libs})),
                  **{MINHA: COR_MINHA})
 
-    colunas = max(1, len(linhas) // len({t for t, _ in linhas}))
-    fileiras = int(np.ceil(len(linhas) / colunas))
-    fig, eixos = plt.subplots(fileiras, colunas, squeeze=False, dpi=200,
-                              figsize=(6.2 * colunas, 2.9 * fileiras))
+    largura = max(len(postos.columns) for _, postos, _ in painel)
+    fig, eixos = plt.subplots(len(painel), 1, squeeze=False, dpi=200,
+                              figsize=(max(10.0, 0.26 * largura),
+                                       3.6 * len(painel) + 0.8))
     fig.patch.set_facecolor(FUNDO)
 
-    for eixo, (titulo, r) in zip(eixos.ravel(), linhas):
-        medios, cd, k = r["postos"], r["cd"], len(r["grupo"])
-        eixo.set_facecolor(FUNDO)
-        for lado in ("left", "right", "bottom"):
-            eixo.spines[lado].set_visible(False)
-        eixo.spines["top"].set_color(TINTA)
-        eixo.xaxis.set_ticks_position("top")
-        fileira = 0.62
-        # as barras do Nemenyi ficam logo abaixo do eixo, atravessadas pelas
-        # hastes, como no diagrama original de Demsar
-        altura_cliques = 0.16 * (1 + len(_cliques(medios, cd)))
-        base_rotulos = altura_cliques + 0.30
-        eixo.set_xlim(1 - 0.12 * k, k + 0.12 * k)
-        eixo.set_ylim(base_rotulos + fileira * (np.ceil(k / 2) - 1) + 0.45,
-                      -0.45)
-        eixo.set_yticks([])
-        eixo.set_xticks(list(range(1, k + 1)))
-        eixo.tick_params(colors=TINTA, labelsize=13, length=5)
+    for eixo, (titulo, postos, n) in zip(eixos.ravel(), painel):
+        ordem = postos.median().sort_values().index.tolist()
+        dados = [postos[c].to_numpy() for c in ordem]
+        _estilo(eixo, fonte=11)
+        eixo.grid(axis="y", color=GRADE, lw=0.7)
+        eixo.grid(axis="x", visible=False)
 
-        for i, (nome, posto) in enumerate(medios.items()):
-            esquerda = i < len(medios) / 2
-            y = fileira * (i if esquerda else len(medios) - 1 - i)                 + base_rotulos
-            ponta = eixo.get_xlim()[0] if esquerda else eixo.get_xlim()[1]
-            eixo.plot([posto, posto], [0, y], color=cores[nome], lw=2.0,
-                      solid_capstyle="round")
-            eixo.plot([posto, ponta], [y, y], color=cores[nome], lw=2.0,
-                      solid_capstyle="round")
-            eixo.annotate(f"{nome}  ({posto:.2f})",
-                          xy=(ponta, y - 0.12), fontsize=12.5, color=TINTA,
-                          ha="left" if esquerda else "right", va="bottom")
+        caixas = eixo.boxplot(dados, patch_artist=True, widths=0.68,
+                              flierprops=dict(marker="o", ms=2.0,
+                                              mfc=FRACO, mec="none",
+                                              alpha=0.6),
+                              medianprops=dict(color=TINTA, lw=1.4),
+                              whiskerprops=dict(color=FRACO, lw=1.0),
+                              capprops=dict(color=FRACO, lw=1.0))
+        for caixa, nome in zip(caixas["boxes"], ordem):
+            lib = nome.split("/")[1]
+            caixa.set(facecolor=cores[lib], alpha=0.85, lw=0.8,
+                      edgecolor=TINTA, hatch=HACHURAS.get(lib, ""))
 
-        for d, (i, j) in enumerate(_cliques(medios, cd)):
-            y = 0.16 * (d + 1)
-            eixo.plot([medios.iloc[i] - 0.03, medios.iloc[j] + 0.03], [y, y],
-                      color=TINTA, lw=4.5, solid_capstyle="round")
+        eixo.set_xticks(range(1, len(ordem) + 1))
+        eixo.set_xticklabels([c.split("/")[0] for c in ordem], rotation=90,
+                             fontsize=9.5, color=TINTA)
+        eixo.set_xlim(0.4, len(ordem) + 0.6)
+        eixo.set_ylim(0.5, len(ordem) + 0.5)
+        eixo.set_ylabel("posto (1 = melhor)", fontsize=12, color=TINTA,
+                        labelpad=6)
+        eixo.annotate(f"{titulo}  ·  {len(ordem)} pares em {n} conjuntos",
+                      xy=(0.004, 0.965), xycoords="axes fraction",
+                      fontsize=13, color=TINTA, ha="left", va="top",
+                      bbox=dict(facecolor=FUNDO, edgecolor="none", pad=3))
 
-        eixo.set_title(f"{titulo} -- {k} bibliotecas, {r['n_blocos']} blocos\n"
-                       f"CD = {cd:.2f}   Friedman p = {r['p']:.1e}",
-                       fontsize=13, color=TINTA, pad=26)
-
-    for eixo in eixos.ravel()[len(linhas):]:
-        eixo.set_visible(False)
-
-    nota = Line2D([], [], color=TINTA, lw=4.5,
-                  label="unidas: o Nemenyi nao separa (5%)")
-    leg = fig.legend(handles=[nota], loc="lower left", frameon=False,
-                     fontsize=12.5, bbox_to_anchor=(0.06, 0.0),
-                     bbox_transform=fig.transFigure, borderpad=0.0)
-    # folga entre as colunas: as hastes vao ate a borda do eixo, e sem isso
-    # o rotulo da direita de um painel encosta no da esquerda do seguinte
-    fig.tight_layout(rect=(0, 0.04, 1, 1), w_pad=4.0)
+    chaves = [Patch(facecolor=cores[l], edgecolor=TINTA, lw=0.8, alpha=0.85,
+                    hatch=HACHURAS.get(l, ""), label=l) for l in libs]
+    leg = fig.legend(handles=chaves, loc="lower left", frameon=False,
+                     fontsize=12.5, ncols=len(chaves), handletextpad=0.6,
+                     columnspacing=2.2, borderpad=0.0,
+                     bbox_to_anchor=(0.01, 0.995),
+                     bbox_transform=fig.transFigure)
+    fig.tight_layout(rect=(0, 0, 1, 0.985), h_pad=2.2)
     return _salvar(fig, destino, extras=[leg])
 
 
@@ -1449,27 +1426,26 @@ duas bibliotecas.</p>
 
     if svg_rank:
         bloco_teste += f"""
-<h2>Ranking: qual biblioteca custa menos</h2>
+<h2>Ranking dos pares metodo x biblioteca</h2>
 <p class="sub">As figuras acima comparam a mlquantify contra uma rival de
-cada vez. Esta responde a pergunta de ordenacao -- <b>qual e a melhor</b> --
-com o procedimento de Demsar (2006): cada bloco e um par (metodo, conjunto
-de dados), cada biblioteca recebe o posto dela dentro do bloco, o Friedman
-diz se ha diferenca entre os postos medios e o Nemenyi diz entre quem. O
-eixo e o posto medio e a melhor fica a <b>esquerda</b>.</p>
-<figure>{svg_rank}<figcaption>A barra horizontal grossa une as bibliotecas
-que o Nemenyi <b>nao</b> separa ao nivel de 5%. Estar sob a mesma barra e
-falta de evidencia de diferenca, e nao evidencia de igualdade: para essa
-afirmacao serve a figura de equivalencia, que e o teste com hipotese
-invertida. Sao dois recortes porque o desenho exige bloco completo -- as
-quatro bibliotecas so coincidem em tres metodos, enquanto tres delas
-coincidem em sete.</figcaption></figure>
-<p class="nota">Duas ressalvas de leitura. O posto e <b>relativo ao bloco</b>:
-ele diz quem foi mais barata, nunca por quanto -- uma vitoria por 1% e uma
-por 100x valem o mesmo posto, e e para isso que existem as florestas de
-razao e o perfil de desempenho. E o conjunto comparado nao e neutro: o
-Nemenyi perde poder conforme entram mais bibliotecas, e o posto medio de
-cada uma depende de quem mais esta na comparacao, de modo que os dois
-recortes nao sao duas medidas do mesmo numero.</p>"""
+cada vez, no mesmo metodo. Esta junta as duas variaveis num tratamento so
+-- o par <code>metodo/biblioteca</code> -- e ordena todos ao mesmo tempo,
+que e a pergunta de quem vai escolher o que usar. Cada bloco e um conjunto
+de dados: dentro dele os pares sao ordenados, o posto 1 fica com o melhor,
+e a caixa mostra a distribuicao dos postos daquele par entre os conjuntos.
+Cor e hachura dizem a biblioteca.</p>
+<figure>{svg_rank}<figcaption>Caixa <b>baixa e curta</b> e bom e constante;
+baixa e comprida e bom em media e instavel -- informacao que a media de
+erro esconde. Os pares vao ordenados pelo posto mediano. Ordenar exige
+bloco completo, entao os pares que nao foram medidos em pelo menos 95% dos
+conjuntos ficam de fora, e saem nomeados na saida do
+script.</figcaption></figure>
+<p class="nota">O posto e <b>relativo ao bloco</b>: diz quem foi melhor
+naquele conjunto, nunca por quanto -- uma vitoria por 1% e uma por 100x
+valem o mesmo posto. Para o tamanho da diferenca servem as florestas de
+razao e os perfis de desempenho. E o conjunto de pares comparados nao e
+neutro: o posto de cada par depende de quais outros entraram, de modo que
+o ranking de erro e o de custo nao se somam num numero unico.</p>"""
 
     nota_custo = ""
     if custo_run:
@@ -1561,6 +1537,10 @@ def main() -> int:
                    help="grava tambem o resumo em csv")
     p.add_argument("--erro", default="mae", choices=("mae", "mrae"),
                    help="medida de erro do teste (padrao: mae)")
+    p.add_argument("--piso-cobertura", type=float, default=0.95, metavar="F",
+                   help="fracao minima de conjuntos que um par metodo x "
+                        "biblioteca precisa ter para entrar no ranking "
+                        "(padrao: 0,95)")
     p.add_argument("--pares-concordancia", type=int, default=8, metavar="N",
                    help="quantos pares entram no grafico de concordancia, "
                         "do maior espalhamento para o menor (padrao: 8)")
@@ -1645,12 +1625,15 @@ def main() -> int:
                     titulo=titulo.lower())))
                 print(f"grafico: {png}")
 
-        medidas = [("tempo_estimacao_total_s", "Tempo de estimacao"),
+        medidas = [(args.erro, args.erro.upper()),
+                   ("tempo_estimacao_total_s", "Tempo de estimacao"),
                    ("memoria_estimacao_mb", "Memoria na estimacao")]
         for coluna, titulo in medidas:
-            imprimir_ranking(ranking_custo(pares, coluna), titulo)
+            imprimir_ranking(*postos_dos_pares(ok, pares, coluna,
+                                               args.piso_cobertura), titulo)
         png = destino.with_name(destino.stem + "_ranking.png")
-        svg_rank = figura_ranking(pares, medidas, png)
+        svg_rank = figura_ranking(ok, pares, medidas, png,
+                                  args.piso_cobertura)
         if svg_rank:
             print(f"grafico: {png}")
 
