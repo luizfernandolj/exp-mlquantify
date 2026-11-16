@@ -3,22 +3,23 @@
 A quantificação trata da estimativa da prevalência das classes em uma amostra, sem
 exigir o rótulo de cada instância. As implementações disponíveis em Python estão
 dispersas em pacotes com formatos próprios, o que obriga o usuário a adaptar dados e
-métodos a cada biblioteca e dificulta a comparação entre elas. Este trabalho apresenta a
-\texttt{mlquantify}, uma biblioteca que reúne 45 métodos de quantificação sob a
-interface do \textit{scikit-learn}. A arquitetura combina \textit{mixins} e
-\textit{tags} para acomodar exigências distintas, aplica decomposição multiclasse de
-forma automática e permite compor novos métodos a partir de representação, função de
-perda e solucionador. O pacote traz ainda protocolos de avaliação, métricas de erro e
-busca de hiperparâmetros guiada pelo erro de quantificação. A biblioteca foi comparada
-com a \texttt{QuaPy}, a \texttt{QuantificationLib} e a \texttt{qunfold} em 28 métodos e
-132 conjuntos de dados, sempre sobre as mesmas amostras. O erro foi avaliado por teste
-de equivalência, com margem de um ponto percentual de prevalência, e o custo pela razão
-de tempo e de memória entre as implementações. Em 38 dos 39 pares de método e biblioteca
-o intervalo de confiança da diferença de erro coube dentro da margem, e a única exceção
-favorece a biblioteca proposta. A razão mediana de custo ficou em 0,967 no tempo e em
-0,816 na memória. Os resultados indicam que a biblioteca oferece a cobertura mais ampla
-de métodos entre as comparadas, com erro equivalente e custo da mesma ordem de grandeza,
-sob uma interface única.
+métodos a cada biblioteca e dificulta a comparação entre elas. Neste trabalho, é
+apresentada a \texttt{mlquantify}, uma biblioteca em que 45 métodos de quantificação são
+reunidos sob a interface do \textit{scikit-learn}. Na arquitetura, são combinados
+\textit{mixins} e \textit{tags} para acomodar exigências distintas, a decomposição
+multiclasse é aplicada de forma automática e novos métodos podem ser compostos a partir
+de representação, função de perda e solucionador. São disponibilizados ainda protocolos
+de avaliação, métricas de erro e busca de hiperparâmetros guiada pelo erro de
+quantificação. A biblioteca foi comparada com a \texttt{QuaPy}, a
+\texttt{QuantificationLib} e a \texttt{qunfold} em 28 métodos e 132 conjuntos de dados,
+sempre sobre as mesmas amostras. O erro foi avaliado por teste de equivalência, com
+margem de um ponto percentual de prevalência, e o custo pela razão de tempo e de memória
+entre as implementações. Em 38 dos 39 pares de método e biblioteca o intervalo de
+confiança da diferença de erro coube dentro da margem, e a única exceção favorece a
+biblioteca proposta. A razão mediana de custo ficou em 0,967 no tempo e em 0,816 na
+memória. Entre as bibliotecas comparadas, a proposta é a de cobertura mais ampla de
+métodos, com erro equivalente e custo da mesma ordem de grandeza, sob uma interface
+única.
 
 \vspace{\onelineskip}
 \noindent
