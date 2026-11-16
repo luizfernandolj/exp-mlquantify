@@ -528,18 +528,33 @@ def _marcas_de(tabela):
     return marcas
 
 
-def _legenda_bibliotecas(fig, ax, cores, libs, extra=(), fonte=12,
-                         formas=None):
+def _legenda_em_duas_linhas(fig, ax, marcadores, chaves, fonte=15):
+    """As bibliotecas em cima, a chave do desenho embaixo.
+
+    Sao duas legendas, e nao uma em ``ncols``: a legenda do matplotlib
+    alinha por coluna, e a coluna fica com a largura do item mais largo, o
+    que empurra a segunda linha para a direita. A de baixo e desenhada
+    primeiro porque e dela que sai a altura onde a de cima se ancora.
+    """
+    comum = dict(loc="lower left", frameon=False, fontsize=fonte,
+                 handletextpad=0.5, handlelength=1.8, borderpad=0.0)
+    leg_chave = ax.legend(handles=chaves, bbox_to_anchor=(0, 1.0),
+                          ncols=len(chaves), columnspacing=1.8, **comum)
+    ax.add_artist(leg_chave)
+
+    fig.canvas.draw()
+    caixa = leg_chave.get_window_extent().transformed(ax.transAxes.inverted())
+    leg_libs = ax.legend(handles=marcadores,
+                         bbox_to_anchor=(0, caixa.y1 + 0.002),
+                         ncols=len(marcadores), columnspacing=2.4, **comum)
+    return [leg_chave, leg_libs]
+
+
+def _marcadores_de(cores, formas, libs, ms=11):
     from matplotlib.lines import Line2D
 
-    formas = formas or {}
-    itens = [Line2D([], [], color=cores[l], lw=0, marker=formas.get(l, "o"),
-                    ms=9, label=l)
-             for l in libs] + list(extra)
-    leg = ax.legend(handles=itens, loc="lower left", bbox_to_anchor=(0, 1.0),
-                    frameon=False, fontsize=fonte, ncols=len(itens),
-                    handletextpad=0.4, columnspacing=1.6)
-    return leg
+    return [Line2D([], [], color=cores[l], lw=0, marker=formas[l], ms=ms,
+                   label=l) for l in libs]
 
 
 def _salvar(fig, destino: Path, extras=()) -> str:
@@ -637,22 +652,9 @@ def figura_equivalencia(teste: pd.DataFrame, margem: float, erro: str,
         Line2D([], [], color=VERDE, lw=1.8, ls=(0, (5, 4)),
                label=rf"faixa $\pm${margem:g}"),
     ]
-    leg_chave = ax.legend(handles=chaves, loc="lower left",
-                          bbox_to_anchor=(0, 1.0), frameon=False, fontsize=15,
-                          ncols=len(chaves), handletextpad=0.5,
-                          columnspacing=1.8, handlelength=1.8, borderpad=0.0)
-    ax.add_artist(leg_chave)
-
-    fig.canvas.draw()
-    caixa = leg_chave.get_window_extent().transformed(ax.transAxes.inverted())
-    marcadores = [Line2D([], [], color=cores[l], lw=0, marker=formas[l],
-                         ms=11, label=l) for l in libs]
-    leg_libs = ax.legend(handles=marcadores, loc="lower left",
-                         bbox_to_anchor=(0, caixa.y1 + 0.002), frameon=False,
-                         fontsize=15, ncols=len(marcadores),
-                         handletextpad=0.5, columnspacing=2.4,
-                         handlelength=1.8, borderpad=0.0)
-    return _salvar(fig, destino, extras=[leg_chave, leg_libs])
+    legendas = _legenda_em_duas_linhas(
+        fig, ax, _marcadores_de(cores, formas, libs), chaves)
+    return _salvar(fig, destino, extras=legendas)
 
 
 def figura_custo(tabela: pd.DataFrame, titulo: str, destino: Path) -> str:
@@ -676,13 +678,19 @@ def figura_custo(tabela: pd.DataFrame, titulo: str, destino: Path) -> str:
     esq = min(float(np.nanmin(tabela["ic_baixo"])) / 1.3, 1 / 1.6)
     dir_ = max(float(np.nanmax(tabela["ic_alto"])) * 1.3, 1.6)
 
-    fig, ax = plt.subplots(figsize=(7.6, 0.44 * len(ordem) + 2.0), dpi=200)
+    # mesma caixa e mesma tipografia da figura de erro
+    fig, ax = plt.subplots(figsize=(10.0, 0.50 * len(ordem) + 2.8), dpi=200)
     fig.patch.set_facecolor(FUNDO)
-    _estilo(ax)
+    _estilo(ax, fonte=16)
     ax.set_xscale("log", base=2)
 
-    ax.axvspan(esq, 1.0, color="#4a9e7f", alpha=0.10, lw=0, zorder=0)
-    ax.axvline(1.0, color=FRACO, lw=1.2, zorder=1)
+    ax.axvspan(esq, 1.0, color=VERDE, alpha=0.07, lw=0, zorder=0)
+    ax.axvline(1.0, color=FRACO, lw=1.6, zorder=1)
+
+    # linhas alternadas levam o olho do nome do metodo ate o ponto
+    for i, (pos, _) in enumerate(rotulos):
+        if i % 2 == 0:
+            ax.axhspan(pos - 0.5, pos + 0.5, color="#f4f4f4", lw=0, zorder=-1)
 
     for _, r in tabela.iterrows():
         y = ys[(r["metodo"], r["biblioteca"])]
@@ -691,38 +699,42 @@ def figura_custo(tabela: pd.DataFrame, titulo: str, destino: Path) -> str:
         # quando cruza: o lado ja esta dito pela posicao
         firme = bool(r["ganha"]) or bool(r["perde"])
         # mesma gramatica da figura de erro: a forma diz a biblioteca
-        ax.plot([r["ic_baixo"], r["ic_alto"]], [y, y], color=cor, lw=2.6,
+        ax.plot([r["ic_baixo"], r["ic_alto"]], [y, y], color=cor, lw=3.0,
                 solid_capstyle="round", zorder=3)
-        ax.plot([r["razao"]], [y], marker=formas[r["biblioteca"]], ms=7.5,
-                color=cor if firme else FUNDO, mec=cor, mew=2.0, zorder=4)
+        ax.plot([r["razao"]], [y], marker=formas[r["biblioteca"]], ms=10.0,
+                color=cor if firme else FUNDO, mec=cor, mew=2.4, zorder=4)
 
     marcas = [m for m in (2.0 ** e for e in range(-8, 9))
               if esq <= m <= dir_]
     rotulos_x = {m: (f"1/{int(round(1 / m))}" if m < 1 else f"{int(round(m))}")
                  for m in marcas}
     ax.xaxis.set_major_locator(FixedLocator(marcas))
-    ax.set_xticklabels([rotulos_x[m] for m in marcas], fontsize=13)
+    ax.set_xticklabels([rotulos_x[m] for m in marcas], fontsize=16)
     ax.xaxis.set_minor_formatter(NullFormatter())
     ax.set_xlim(esq, dir_)
     ax.set_ylim(fim + 0.5, 1.05)
     ax.set_yticks([p for p, _ in rotulos])
-    ax.set_yticklabels([m for _, m in rotulos], fontsize=13, color=TINTA)
+    ax.set_yticklabels([m for _, m in rotulos], fontsize=16, color=TINTA)
     ax.set_xlabel(f"{titulo} da mlquantify, em multiplos da outra biblioteca",
-                  fontsize=13.5, color=TINTA, labelpad=10)
+                  fontsize=17, color=TINTA, labelpad=12)
 
-    ax.annotate("mlquantify mais barata", xy=(esq * 1.05, 1.05),
-                fontsize=12, color=FRACO, ha="left", va="bottom")
-    ax.annotate("mais cara", xy=(dir_ * 0.97, 1.05), fontsize=12, color=FRACO,
-                ha="right", va="bottom")
+    ax.annotate(r"$\leftarrow$ mlquantify mais barata", xy=(esq * 1.04, 0.72),
+                fontsize=15, color=FRACO, ha="left", va="center",
+                bbox=dict(facecolor=FUNDO, edgecolor="none", pad=2))
+    ax.annotate(r"mais cara $\rightarrow$", xy=(dir_ * 0.96, 0.72),
+                fontsize=15, color=FRACO, ha="right", va="center",
+                bbox=dict(facecolor=FUNDO, edgecolor="none", pad=2))
 
-    chave = [
-        Line2D([], [], color=TINTA, lw=2.6, marker="o", ms=7,
-               label="razao mediana e IC de 95%"),
-        Line2D([], [], color=TINTA, lw=2.6, marker="o", ms=7, mfc=FUNDO,
-               mew=2.0, label="IC cruza 1"),
+    chaves = [
+        Line2D([], [], color=TINTA, lw=0, marker="o", ms=10,
+               label="cheio: IC todo de um lado de 1"),
+        Line2D([], [], color=TINTA, lw=0, marker="o", ms=10, mfc=FUNDO,
+               mew=2.4, label="vazado: IC cruza 1"),
+        Line2D([], [], color=TINTA, lw=3.0, label="IC de 95%"),
     ]
-    _legenda_bibliotecas(fig, ax, cores, libs, extra=chave, formas=formas)
-    return _salvar(fig, destino)
+    legendas = _legenda_em_duas_linhas(
+        fig, ax, _marcadores_de(cores, formas, libs), chaves)
+    return _salvar(fig, destino, extras=legendas)
 
 
 # ---------------------------------------------------------------------------
@@ -911,9 +923,10 @@ de dados, com Holm sobre os {len(teste)} pares. Um p de equivalencia pequeno
 biblioteca. O ponto e a diferenca mediana de {erro.upper()}
 (Hodges-Lehmann) e a barra e o intervalo de confianca de 95% dessa
 diferenca. A faixa verde e a margem de equivalencia: quando o intervalo
-cabe inteiro nela (circulo cheio), a compatibilidade esta demonstrada, e
-nao apenas nao refutada; o losango vazado marca o intervalo que
-escapa.</figcaption></figure>
+cabe inteiro nela (marcador cheio), a compatibilidade esta demonstrada, e
+nao apenas nao refutada; o marcador vazado marca o intervalo que escapa. A
+forma do marcador diz a biblioteca, para a figura se ler tambem impressa
+em preto e branco.</figcaption></figure>
 {_tabela_teste(teste, margem)}
 <p class="nota">Unidade de analise: o conjunto de dados. O erro do mesmo
 conjunto nos quatro tamanhos de amostra nao sao observacoes independentes,
