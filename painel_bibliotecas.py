@@ -40,6 +40,11 @@ CUSTOS = [
 
 CHAVE = ["dataset_id", "metodo", "tamanho_amostra"]
 
+#: As medidas de erro que a execucao ja gravou, do nome curto para a coluna
+#: do summary. Qualquer outra exige rodar de novo: o vetor de prevalencia
+#: estimada por amostra nao fica na execucao oficial.
+ERROS = {"mae": "mae", "mrae": "mrae", "mse": "mse", "nkld": "nkld_medio"}
+
 #: Abaixo disto o erro e tratado como identico (ruido de ponto flutuante nao
 #: chega perto de 1e-3; essa e a mesma faixa que o q1_erro.csv usa).
 TOL_EMPATE = 1e-3
@@ -66,8 +71,9 @@ def parear(ok: pd.DataFrame) -> pd.DataFrame:
     Cada linha traz as colunas da mlquantify com sufixo ``_minha`` e as da
     rival com ``_dela``.
     """
-    colunas = CHAVE + ["biblioteca", "n_classes", "n_atributos", "n_instancias",
-                       "mae", "mrae"] + [c for c, _, _ in CUSTOS]
+    colunas = (CHAVE + ["biblioteca", "n_classes", "n_atributos",
+                        "n_instancias"] + list(ERROS.values())
+               + [c for c, _, _ in CUSTOS])
     colunas = [c for c in colunas if c in ok.columns]
     base = ok[colunas].copy()
     minha = base[base["biblioteca"] == MINHA].drop(columns="biblioteca")
@@ -79,6 +85,12 @@ def parear(ok: pd.DataFrame) -> pd.DataFrame:
     numericas = [c for c in minha.columns if c not in CHAVE]
     minha = minha.groupby(CHAVE, as_index=False)[numericas].median()
     pares = outras.merge(minha, on=CHAVE, suffixes=("_dela", "_minha"))
+    # o nome curto e o que o resto do script usa: nkld_medio vira nkld
+    for curto, coluna in ERROS.items():
+        if curto == coluna:
+            continue
+        pares = pares.rename(columns={f"{coluna}_minha": f"{curto}_minha",
+                                      f"{coluna}_dela": f"{curto}_dela"})
     return pares
 
 
@@ -1694,7 +1706,7 @@ def main() -> int:
                    help="onde gravar o painel (padrao: na pasta da execucao)")
     p.add_argument("--csv", default=None, metavar="ARQUIVO",
                    help="grava tambem o resumo em csv")
-    p.add_argument("--erro", default="mae", choices=("mae", "mrae"),
+    p.add_argument("--erro", default="mae", choices=tuple(ERROS),
                    help="medida de erro do teste (padrao: mae)")
     p.add_argument("--sem-variantes", action="store_true",
                    help="nao gera as versoes deitada e por biblioteca das "
@@ -1729,6 +1741,14 @@ def main() -> int:
 
     destino = Path(args.html) if args.html else run_dir / "painel_bibliotecas.html"
     destino.parent.mkdir(parents=True, exist_ok=True)
+
+    if args.erro != "mae" and args.margem == MARGEM:
+        print(f"\n  AVISO: a margem padrao de {MARGEM:g} e um ponto "
+              f"percentual de prevalencia, isto e, esta em unidade de AE.\n"
+              f"  Para {args.erro.upper()} ela nao tem esse significado e "
+              f"precisa ser escolhida de novo, com --margem,\n"
+              f"  antes de olhar os dados. O que sai dela ate la e a "
+              f"diferenca e o intervalo, nao o veredito.")
 
     teste, svg, svg_ba, svg_custo, svg_rank = None, None, None, [], None
     if not args.sem_teste:

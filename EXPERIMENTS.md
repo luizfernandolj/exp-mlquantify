@@ -2656,6 +2656,20 @@ python painel_bibliotecas.py --run-id final-pareado \
     --custo-run custo-final5 --out-dir C:/Users/luiz_/exp-mlquantify-run
 ```
 
+**A medida de erro e trocavel sem rodar de novo, mas so entre quatro.** O
+`--erro` aceita `mae`, `mrae`, `mse` e `nkld`, que sao as que o
+`summary.csv` ja traz. Qualquer outra exigiria os vetores de prevalencia
+estimada por amostra, e eles **nao sobrevivem** na execucao oficial: a
+`final-pareado` nao tem `per_sample.csv` e as parciais guardadas sao so os
+`summary`. Para uma metrica nova seria preciso reexecutar -- so a
+estimacao, que e a parte barata, guardando as amostras.
+
+E a margem de equivalencia **nao se transporta**: o +-0,01 e um ponto
+percentual de prevalencia, isto e, esta em unidade de AE. Para as outras
+tres ela precisa ser escolhida de novo, antes de olhar os dados; o script
+avisa quando o erro nao e o `mae` e a margem ficou no padrao. Ate la, o que
+sai da figura e a diferenca e o intervalo, nao o veredito.
+
 Sao cinco figuras, e cada uma existe porque responde uma pergunta que as
 outras nao respondem:
 
