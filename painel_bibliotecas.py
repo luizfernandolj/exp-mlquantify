@@ -467,9 +467,19 @@ def imprimir_custo(tabela: pd.DataFrame, titulo: str) -> None:
 CORES = {
     "quapy": "#2b6cb0",
     "quantificationlib": "#b7791f",
-    "qunfold": "#2f7a5a",
+    "qunfold": "#1d5c46",
 }
 COR_EXTRA = ["#6b46c1", "#9b2c2c", "#2c7a7b"]
+
+#: Uma forma por biblioteca. A figura tem de se ler impressa em preto e
+#: branco: a cor e redundante com a forma, e os tres tons foram escolhidos
+#: com luminancias distintas (aprox. 96, 129 e 71 em cinza de 0 a 255).
+MARCAS = {
+    "quapy": "o",
+    "quantificationlib": "s",
+    "qunfold": "^",
+}
+MARCA_EXTRA = ["v", "P", "X"]
 
 TINTA = "#1a1a1a"
 FRACO = "#6b6b6b"
@@ -509,10 +519,22 @@ def _cores_de(tabela):
     return cores
 
 
-def _legenda_bibliotecas(fig, ax, cores, libs, extra=(), fonte=12):
+def _marcas_de(tabela):
+    marcas = dict(MARCAS)
+    extras = [l for l in sorted(tabela["biblioteca"].unique())
+              if l not in marcas]
+    for i, lib in enumerate(extras):
+        marcas[lib] = MARCA_EXTRA[i % len(MARCA_EXTRA)]
+    return marcas
+
+
+def _legenda_bibliotecas(fig, ax, cores, libs, extra=(), fonte=12,
+                         formas=None):
     from matplotlib.lines import Line2D
 
-    itens = [Line2D([], [], color=cores[l], lw=0, marker="o", ms=9, label=l)
+    formas = formas or {}
+    itens = [Line2D([], [], color=cores[l], lw=0, marker=formas.get(l, "o"),
+                    ms=9, label=l)
              for l in libs] + list(extra)
     leg = ax.legend(handles=itens, loc="lower left", bbox_to_anchor=(0, 1.0),
                     frameon=False, fontsize=fonte, ncols=len(itens),
@@ -544,6 +566,7 @@ def figura_equivalencia(teste: pd.DataFrame, margem: float, erro: str,
     from matplotlib.lines import Line2D
 
     cores = _cores_de(teste)
+    formas = _marcas_de(teste)
     libs = sorted(teste["biblioteca"].unique())
     ordem = (teste.assign(a=teste["hl"].abs()).groupby("metodo")["a"].max()
              .sort_values(ascending=False).index.tolist())
@@ -576,13 +599,16 @@ def figura_equivalencia(teste: pd.DataFrame, margem: float, erro: str,
         elif i % 2 == 0:
             ax.axhspan(p - 0.5, p + 0.5, color="#f4f4f4", lw=0, zorder=-1)
 
+    # A forma diz qual biblioteca e o preenchimento diz o veredito, para que
+    # nada dependa da cor: impressa em cinza a figura continua separavel.
     for _, r in teste.iterrows():
         y = ys[(r["metodo"], r["biblioteca"])]
         cor = cores[r["biblioteca"]]
+        forma = formas[r["biblioteca"]]
         dentro = bool(r["ic_na_faixa"])
         ax.plot([r["ic_baixo"], r["ic_alto"]], [y, y], color=cor, lw=3.0,
                 solid_capstyle="round", zorder=3)
-        ax.plot([r["hl"]], [y], marker="o" if dentro else "D", ms=9.0,
+        ax.plot([r["hl"]], [y], marker=forma, ms=10.0 if forma != "o" else 9.5,
                 color=cor if dentro else FUNDO, mec=cor, mew=2.4, zorder=4)
 
     ax.set_xlim(-limite, limite)
@@ -599,30 +625,34 @@ def figura_equivalencia(teste: pd.DataFrame, margem: float, erro: str,
                 fontsize=15, color=FRACO, ha="right", va="center",
                 bbox=dict(facecolor=FUNDO, edgecolor="none", pad=2))
 
-    # Uma legenda so, em duas linhas: as bibliotecas em cima, a chave do
-    # desenho embaixo. Rotulos curtos; a explicacao vai na legenda do texto.
+    # Duas legendas empilhadas, as duas ancoradas na margem esquerda: uma so
+    # legenda em ncols alinha por coluna e joga a segunda linha para a
+    # direita. A de baixo e desenhada primeiro para dar a altura da de cima.
     chaves = [
         Line2D([], [], color=TINTA, lw=0, marker="o", ms=10,
-               label="dentro da faixa"),
-        Line2D([], [], color=TINTA, lw=0, marker="D", ms=10, mfc=FUNDO,
-               mew=2.4, label="fora da faixa"),
+               label="cheio: IC dentro da faixa"),
+        Line2D([], [], color=TINTA, lw=0, marker="o", ms=10, mfc=FUNDO,
+               mew=2.4, label="vazado: IC fora"),
         Line2D([], [], color=TINTA, lw=3.0, label="IC de 95%"),
         Line2D([], [], color=VERDE, lw=1.8, ls=(0, (5, 4)),
-               label=f"faixa $\\pm${margem:g}"),
+               label=rf"faixa $\pm${margem:g}"),
     ]
-    marcas = [Line2D([], [], color=cores[l], lw=0, marker="o", ms=11, label=l)
-              for l in libs]
-    vazio = Line2D([], [], lw=0, label=" ")
-    colunas = max(len(marcas), len(chaves))
-    marcas += [vazio] * (colunas - len(marcas))
-    chaves += [vazio] * (colunas - len(chaves))
-    # a legenda do matplotlib preenche coluna a coluna: intercalar as duas
-    # listas deixa as bibliotecas na primeira linha e a chave na segunda
-    itens = [h for par in zip(marcas, chaves) for h in par]
-    leg = ax.legend(handles=itens, loc="lower left", bbox_to_anchor=(0, 1.0),
-                    frameon=False, fontsize=15, ncols=colunas,
-                    handletextpad=0.5, columnspacing=1.8, labelspacing=0.5)
-    return _salvar(fig, destino, extras=[leg])
+    leg_chave = ax.legend(handles=chaves, loc="lower left",
+                          bbox_to_anchor=(0, 1.0), frameon=False, fontsize=15,
+                          ncols=len(chaves), handletextpad=0.5,
+                          columnspacing=1.8, handlelength=1.8, borderpad=0.0)
+    ax.add_artist(leg_chave)
+
+    fig.canvas.draw()
+    caixa = leg_chave.get_window_extent().transformed(ax.transAxes.inverted())
+    marcadores = [Line2D([], [], color=cores[l], lw=0, marker=formas[l],
+                         ms=11, label=l) for l in libs]
+    leg_libs = ax.legend(handles=marcadores, loc="lower left",
+                         bbox_to_anchor=(0, caixa.y1 + 0.002), frameon=False,
+                         fontsize=15, ncols=len(marcadores),
+                         handletextpad=0.5, columnspacing=2.4,
+                         handlelength=1.8, borderpad=0.0)
+    return _salvar(fig, destino, extras=[leg_chave, leg_libs])
 
 
 def figura_custo(tabela: pd.DataFrame, titulo: str, destino: Path) -> str:
@@ -635,6 +665,7 @@ def figura_custo(tabela: pd.DataFrame, titulo: str, destino: Path) -> str:
     from matplotlib.ticker import FixedLocator, NullFormatter
 
     cores = _cores_de(tabela)
+    formas = _marcas_de(tabela)
     libs = sorted(tabela["biblioteca"].unique())
     ordem = (tabela.groupby("metodo")["razao"].min()
              .sort_values().index.tolist())
@@ -659,9 +690,10 @@ def figura_custo(tabela: pd.DataFrame, titulo: str, destino: Path) -> str:
         # cheio quando o intervalo fica inteiro de um lado de 1, vazado
         # quando cruza: o lado ja esta dito pela posicao
         firme = bool(r["ganha"]) or bool(r["perde"])
+        # mesma gramatica da figura de erro: a forma diz a biblioteca
         ax.plot([r["ic_baixo"], r["ic_alto"]], [y, y], color=cor, lw=2.6,
                 solid_capstyle="round", zorder=3)
-        ax.plot([r["razao"]], [y], marker="o", ms=7.0,
+        ax.plot([r["razao"]], [y], marker=formas[r["biblioteca"]], ms=7.5,
                 color=cor if firme else FUNDO, mec=cor, mew=2.0, zorder=4)
 
     marcas = [m for m in (2.0 ** e for e in range(-8, 9))
@@ -689,7 +721,7 @@ def figura_custo(tabela: pd.DataFrame, titulo: str, destino: Path) -> str:
         Line2D([], [], color=TINTA, lw=2.6, marker="o", ms=7, mfc=FUNDO,
                mew=2.0, label="IC cruza 1"),
     ]
-    _legenda_bibliotecas(fig, ax, cores, libs, extra=chave)
+    _legenda_bibliotecas(fig, ax, cores, libs, extra=chave, formas=formas)
     return _salvar(fig, destino)
 
 
