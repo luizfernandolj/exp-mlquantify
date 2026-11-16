@@ -2656,21 +2656,88 @@ python painel_bibliotecas.py --run-id final-pareado \
     --custo-run custo-final5 --out-dir C:/Users/luiz_/exp-mlquantify-run
 ```
 
-Sao quatro figuras, e cada uma existe porque responde uma pergunta que as
+Sao cinco figuras, e cada uma existe porque responde uma pergunta que as
 outras nao respondem:
 
 | figura | pergunta | forma escolhida |
 | --- | --- | --- |
 | `_equivalencia` | as implementacoes concordam dentro de +-0,01? | floresta: ponto no Hodges-Lehmann, barra no IC de 95% |
 | `_concordancia` | a discordancia e constante ou cresce com a dificuldade? | Bland-Altman, y simetrico-logaritmico com o joelho na margem |
-| `_tempo` / `_memoria` | quanto a mlquantify cobra no conjunto tipico? | floresta da razao, em log2 |
+| `_tempo` / `_memoria` | quanto a mlquantify cobra em relacao a cada rival? | floresta da razao, em log2 |
 | `_perfil_tempo` / `_perfil_memoria` | em que fracao dos problemas cada uma fica dentro de um fator? | perfil de desempenho de Dolan-More |
+| `_ranking` | **qual delas e a melhor?** | posto medio, Friedman e Nemenyi, em diagrama de diferenca critica |
+
+As quatro primeiras comparam a mlquantify contra **uma rival de cada vez**,
+que e a forma pareada; so a ultima ordena as quatro ao mesmo tempo. A
+distincao entre as perguntas importa mais do que parece, e as tres primeiras
+nao sao redundantes entre si: a de equivalencia afirma igualdade dentro de
+uma margem, o Bland-Altman mostra se a discordancia depende do nivel, e a
+floresta de razao diz o tamanho da diferenca de custo. Nenhuma delas
+responde "qual e a melhor", e o ranking, que responde, nao diz por quanto.
 
 Todas se leem **impressas em preto e branco**, que e um requisito e nao um
 enfeite: a forma do marcador diz a biblioteca nas florestas, o tracejado
 diz a biblioteca nos perfis, e o preenchimento do marcador diz o veredito.
 A cor e redundante com isso, e os tons foram escolhidos com luminancias
 distintas.
+
+#### O ranking: qual biblioteca custa menos
+
+A pergunta de ordenacao nao e a mesma das outras figuras, e o instrumento
+dela e o de Demsar (2006): **posto medio por bloco**, Friedman para dizer se
+ha diferenca entre os postos e Nemenyi para dizer entre quem. Um bloco e um
+par (metodo, conjunto de dados), e dentro do bloco cada biblioteca recebe o
+posto 1, 2, 3 ou 4 conforme o custo; empate recebe a media dos postos.
+
+O desenho exige **bloco completo** -- toda biblioteca comparada tem de ter
+medido todo bloco --, e e por isso que sao dois recortes:
+
+| recorte | blocos | metodos |
+| --- | --- | --- |
+| as quatro bibliotecas | 404 | `EDx`, `EDy`, `EMQ` |
+| sem a qunfold | 969 | `CC`, `EDx`, `EDy`, `EMQ`, `HDx`, `PACC`, `PCC` |
+
+Resultado, com o custo da mlquantify vindo da `custo-final5` nos 12 metodos
+que ela mediu:
+
+| medida | recorte | postos medios | o que o Nemenyi nao separa |
+| --- | --- | --- | --- |
+| tempo de estimacao | 4 libs | quapy 1,51; **mlquantify 2,21**; quantificationlib 2,29; qunfold 3,99 | mlquantify ~ quantificationlib |
+| tempo de estimacao | 3 libs | quapy 1,89; **mlquantify 2,04**; quantificationlib 2,07 | mlquantify ~ quantificationlib |
+| memoria na estimacao | 4 libs | **mlquantify 1,60**; quapy 2,29; qunfold 2,42; quantificationlib 3,69 | quapy ~ qunfold |
+| memoria na estimacao | 3 libs | **mlquantify 1,47**; quapy 1,59; quantificationlib 2,93 | nenhum par |
+
+Leitura: **no tempo a quapy e a primeira e a mlquantify empata com a
+quantificationlib**, nos dois recortes; **na memoria a mlquantify e a
+primeira**, nos dois, e com tres bibliotecas a separacao e limpa. A qunfold
+fica isolada em ultimo no tempo, com posto 3,99 de um maximo de 4, isto e,
+ela e a mais lenta em quase todo bloco em que aparece.
+
+Os Friedman dao p entre 7,4e-05 e 2,9e-278, de modo que **a pergunta
+interessante nunca e se existe diferenca**, e sim entre quem -- que e o que
+a barra do Nemenyi responde.
+
+**Tres ressalvas, que o texto precisa carregar junto com os numeros.**
+
+1. **O posto e relativo ao bloco e nao diz por quanto.** Uma vitoria por 1%
+   e uma por 100x valem o mesmo posto. Essa informacao esta na floresta de
+   razao e no perfil de desempenho, e e por isso que as tres figuras
+   convivem em vez de uma substituir as outras. O caso do `PACC` em
+   `Walking.csv` ilustra: no ranking e um bloco como qualquer outro, e na
+   razao e um 523x.
+2. **Estar sob a mesma barra e falta de evidencia de diferenca**, e nao
+   evidencia de igualdade. A afirmacao de igualdade continua sendo so do
+   teste de equivalencia, que e o de hipotese invertida. O empate entre a
+   mlquantify e a quantificationlib no tempo diz que o Nemenyi nao as
+   separa, nao que elas custam o mesmo.
+3. **O conjunto comparado nao e neutro.** O posto medio de cada biblioteca
+   depende de quem mais esta na comparacao, e o Nemenyi perde poder conforme
+   entram mais tratamentos -- a CD vai de 0,106 com tres bibliotecas para
+   0,233 com quatro. Os dois recortes, portanto, **nao sao duas medidas do
+   mesmo numero**. Ismail-Fawaz et al. (2023) fazem exatamente essa critica
+   ao diagrama de diferenca critica, e aqui ela se aplica ao pe da letra,
+   porque quem entra na comparacao e ditado por qual biblioteca implementa
+   qual metodo, nao por uma escolha de quem compara.
 
 #### O que o perfil de desempenho mostrou, e as outras nao mostravam
 
