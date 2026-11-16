@@ -15,6 +15,18 @@ python painel_bibliotecas.py --run-id final-pareado \
 As figuras nascem em `results/custo-final5/` com o prefixo
 `painel_bibliotecas_`; esta pasta e uma copia com nomes descritivos.
 
+Em `dados/` fica o csv que sustenta cada figura, com o mesmo numero. Os
+pequenos trazem o resultado ja agregado (um por par metodo x biblioteca) e
+os grandes trazem a observacao crua, uma por (par, conjunto de dados):
+
+| csv | uma linha por | colunas |
+| --- | --- | --- |
+| `01-equivalencia-erro` | par metodo x biblioteca | `hl`, `ic_baixo`, `ic_alto`, os p do TOST e do Wilcoxon com e sem Holm, `veredito` |
+| `02-concordancia-erro` | par x conjunto | os dois erros, a diferenca e o nivel (a media dos dois) |
+| `03-razao-tempo`, `04-razao-memoria` | par metodo x biblioteca | `razao`, `ic_baixo`, `ic_alto`, `ganha`, `perde` |
+| `05-perfil-tempo`, `06-perfil-memoria` | (metodo, conjunto, biblioteca) | o custo bruto, de onde a curva sai |
+| `07-ranking-pares-*` | par metodo x biblioteca | `posto_medio`, `posto_mediano`, `posto_p25`, `posto_p75` |
+
 | arquivo | o que responde |
 | --- | --- |
 | `01-equivalencia-erro` | as implementacoes do mesmo metodo concordam dentro de +-0,01 de MAE? |

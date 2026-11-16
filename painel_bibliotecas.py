@@ -1608,11 +1608,17 @@ def main() -> int:
                          index=False)
 
             png = destino.with_name(destino.stem + "_concordancia.png")
+            dif = diferencas(pares, args.erro)
             svg_ba = figura_bland_altman(
-                diferencas(pares, args.erro), teste, args.margem, args.erro,
-                png, quantos=args.pares_concordancia)
+                dif, teste, args.margem, args.erro, png,
+                quantos=args.pares_concordancia)
             if svg_ba:
                 print(f"grafico: {png}")
+            # os pontos da figura, um por (par, conjunto)
+            dif = dif.assign(nivel=(dif[f"{args.erro}_minha"]
+                                    + dif[f"{args.erro}_dela"]) / 2.0)
+            dif.to_csv(destino.with_name(destino.stem + "_concordancia.csv"),
+                       index=False)
 
         for coluna, nome, legenda in (
             ("tempo_estimacao_total_s", "tempo",
@@ -1648,6 +1654,9 @@ def main() -> int:
 
             png = destino.with_name(f"{destino.stem}_perfil_{nome}.png")
             svg_perfil = figura_perfil(pares, coluna, png)
+            _custo_longo(pares, coluna).to_csv(
+                destino.with_name(f"{destino.stem}_perfil_{nome}.csv"),
+                index=False)
             if svg_perfil:
                 svg_custo.append((svg_perfil, legenda_perfil.format(
                     titulo=titulo.lower())))
@@ -1660,8 +1669,24 @@ def main() -> int:
                    (("memoria_treino_mb", "memoria_estimacao_mb"),
                     "Memoria (pico entre treino e estimacao)", "max")]
         for colunas, titulo, juntar in medidas:
-            imprimir_ranking(*postos_dos_pares(ok, pares, colunas, juntar,
-                                               args.piso_cobertura), titulo)
+            postos, fora, n_blocos = postos_dos_pares(
+                ok, pares, colunas, juntar, args.piso_cobertura)
+            imprimir_ranking(postos, fora, n_blocos, titulo)
+            if postos is not None:
+                resumo_postos = pd.DataFrame({
+                    "par": postos.columns,
+                    "metodo": [c.split("/")[0] for c in postos.columns],
+                    "biblioteca": [c.split("/")[1] for c in postos.columns],
+                    "posto_medio": postos.mean().to_numpy(),
+                    "posto_mediano": postos.median().to_numpy(),
+                    "posto_p25": postos.quantile(0.25).to_numpy(),
+                    "posto_p75": postos.quantile(0.75).to_numpy(),
+                    "n_conjuntos": n_blocos,
+                }).sort_values("posto_mediano")
+                curto = colunas[0].split("_")[0]
+                resumo_postos.to_csv(
+                    destino.with_name(f"{destino.stem}_ranking_{curto}.csv"),
+                    index=False)
         # o erro nao entra no grafico, mas o ranking dele sai impresso
         imprimir_ranking(*postos_dos_pares(ok, pares, args.erro, "soma",
                                            args.piso_cobertura),
