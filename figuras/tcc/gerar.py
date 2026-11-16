@@ -44,7 +44,7 @@ print(f"metodos: {pares['metodo'].nunique()}")
 
 # ---------------------------------------------------------------- Q1
 teste = pb.testar(pares, erro="mae", margem=pb.MARGEM)
-pb.figura_equivalencia(teste, pb.MARGEM, "mae", SAIDA / "q1_equivalencia.png")
+pb.figura_equivalencia(teste, pb.MARGEM, "mae", SAIDA / "q1-equivalencia.png")
 print("\nQ1, AE")
 print(teste["veredito"].value_counts().to_string())
 print(f"  IC na faixa: {int(teste['ic_na_faixa'].sum())} de {len(teste)}")
@@ -71,8 +71,8 @@ print(rae.head(4)[["metodo", "biblioteca", "hl", "ic_baixo", "ic_alto"]]
 
 # ---------------------------------------------------------------- Q2
 medidas = [
-    ("tempo_total_s", "Tempo total", "q2_tempo"),
-    ("memoria_pico_mb", "Memoria", "q2_memoria"),
+    ("tempo_total_s", "Tempo total", "q2-tempo"),
+    ("memoria_pico_mb", "Memória", "q2-memoria"),
 ]
 for coluna, titulo, nome in medidas:
     tabela = pb.testar_custo(pares, coluna)
@@ -104,5 +104,5 @@ for coluna, rotulo in (("tempo_treino_s", "tempo de treinamento"),
 fases = pd.DataFrame(linhas).pivot(index="medida", columns="biblioteca",
                                    values="razao_mediana")
 print(fases.round(3).to_string())
-fases.to_csv(SAIDA / "q2_fases.csv")
+fases.to_csv(SAIDA / "q2-fases.csv")
 print(f"\nfiguras em {SAIDA}")
