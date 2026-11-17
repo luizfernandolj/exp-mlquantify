@@ -18,15 +18,15 @@ mesmo vale para uma empresa que monitora a recepção de um produto e busca a po
 de comentários negativos \cite{esuli2015}. Em ambos os casos, o resultado procurado é a
 proporção de cada classe dentro do grupo \cite{gonzalez2017}.
 
-Uma vez que a classificação já atribui uma classe a cada exemplo, a saída mais direta
-consiste em classificar os elementos do grupo e contar os rótulos atribuídos. Esse
-procedimento supõe que os dados de treinamento e os dados sobre os quais o modelo é
-aplicado venham da mesma distribuição \cite{morenotorres2012unifying}. Entretanto, essa
-suposição é frequentemente violada na prática, pois a proporção de infectados se altera
-ao longo de uma epidemia e a de comentários negativos se altera após uma mudança no
-produto. Quando isso ocorre, o classificador erra de forma sistemática na mesma direção e
-os erros deixam de se compensar na contagem final \cite{forman2008}. O resultado é que a
-classificação não é suficiente para estimar a proporção procurada.
+Como a classificação já atribui uma classe a cada exemplo, a saída mais direta é
+classificar os elementos do grupo e contar os rótulos atribuídos. Esse procedimento, porém,
+supõe que os dados de treinamento e os de aplicação venham da mesma distribuição
+\cite{morenotorres2012unifying}, suposição frequentemente violada na prática, já que a
+proporção de infectados pode mudar ao longo de uma epidemia e a de comentários negativos
+pode mudar após uma alteração no produto. Nesse caso, o classificador passa a errar de
+forma sistemática na mesma direção, de modo que os erros deixam de se compensar na
+contagem final \cite{forman2008} e a classificação sozinha não basta para estimar a
+proporção procurada.
 
 A quantificação surge como resposta a essa limitação, com métodos que estimam a proporção
 de cada classe de forma direta e corrigem os erros conhecidos do classificador

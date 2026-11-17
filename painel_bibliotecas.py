@@ -568,17 +568,28 @@ def _legenda_em_duas_linhas(fig, ax, marcadores, chaves, fonte=15):
     alinha por coluna, e a coluna fica com a largura do item mais largo, o
     que empurra a segunda linha para a direita. A de baixo e desenhada
     primeiro porque e dela que sai a altura onde a de cima se ancora.
+
+    As duas sao centradas no desenho, e nao no eixo. Os rotulos do eixo y
+    ficam fora da caixa do eixo e so alargam o desenho para a esquerda, de
+    modo que o meio do eixo nao e o meio do que o recorte ``tight`` grava
+    no arquivo: ancorar a legenda em ``0.5`` do eixo a joga para a direita.
+    O meio sai do ``tightbbox``, medido antes de haver legenda.
     """
-    comum = dict(loc="lower left", frameon=False, fontsize=fonte,
+    comum = dict(loc="lower center", frameon=False, fontsize=fonte,
                  handletextpad=0.5, handlelength=1.8, borderpad=0.0)
-    leg_chave = ax.legend(handles=chaves, bbox_to_anchor=(0, 1.0),
+    fig.canvas.draw()
+    desenho = (ax.get_tightbbox(fig.canvas.get_renderer())
+               .transformed(ax.transAxes.inverted()))
+    meio = (desenho.x0 + desenho.x1) / 2.0
+
+    leg_chave = ax.legend(handles=chaves, bbox_to_anchor=(meio, 1.0),
                           ncols=len(chaves), columnspacing=1.8, **comum)
     ax.add_artist(leg_chave)
 
     fig.canvas.draw()
     caixa = leg_chave.get_window_extent().transformed(ax.transAxes.inverted())
     leg_libs = ax.legend(handles=marcadores,
-                         bbox_to_anchor=(0, caixa.y1 + 0.002),
+                         bbox_to_anchor=(meio, caixa.y1 + 0.002),
                          ncols=len(marcadores), columnspacing=2.4, **comum)
     return [leg_chave, leg_libs]
 
@@ -733,9 +744,9 @@ def figura_equivalencia(teste: pd.DataFrame, margem: float, erro: str,
                     fontsize=15, color=FRACO, ha="right", va="center",
                     bbox=dict(facecolor=FUNDO, edgecolor="none", pad=2))
 
-    # Duas legendas empilhadas, as duas ancoradas na margem esquerda: uma so
-    # legenda em ncols alinha por coluna e joga a segunda linha para a
-    # direita. A de baixo e desenhada primeiro para dar a altura da de cima.
+    # Duas legendas empilhadas, as duas centradas no desenho: uma so legenda
+    # em ncols alinha por coluna e joga a segunda linha para a direita. A de
+    # baixo e desenhada primeiro para dar a altura da de cima.
     chaves = [
         Line2D([], [], color=TINTA, lw=0, marker="o", ms=10,
                label="cheio: IC dentro da faixa"),

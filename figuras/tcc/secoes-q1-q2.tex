@@ -1,26 +1,25 @@
 \section{\texorpdfstring{\textbf{Q1}}{Q1} - A biblioteca proposta apresenta erro de quantificação equivalente ao das bibliotecas de referência para um mesmo método?}
 \label{subsec:res_q1}
 
-São comparados 28 métodos e 132 conjuntos de dados, distribuídos em 39 pares de método
-e biblioteca. Cada par é avaliado sobre os conjuntos concluídos nas duas
+São comparados 28 métodos sobre 132 conjuntos de dados, distribuídos em 39 pares de
+método e biblioteca. Cada par é avaliado nos conjuntos concluídos pelas duas
 implementações, de 108 a 132 conforme o caso.
 
-A equivalência exige um teste próprio. A ausência de diferença significativa indica
-apenas falta de evidência, de modo que afirmar igualdade pede a hipótese invertida. Foi
-adotado o TOST sobre os postos sinalizados de Wilcoxon, com margem de $0{,}01$ em AE,
-equivalente a um ponto percentual de prevalência. Abaixo desse valor a diferença não
-altera decisão alguma tomada a partir da estimativa. A unidade de análise é o conjunto de
-dados, com os quatro tamanhos de amostra reunidos pela média, uma vez que medidas do
-mesmo conjunto não são independentes. A diferença central vem do estimador de
-Hodges-Lehmann, acompanhada do intervalo de confiança de 95\% derivado do próprio teste,
-e a multiplicidade dos 39 pares é corrigida por Holm.
+A equivalência exige um teste próprio, uma vez que a ausência de diferença significativa
+indica apenas falta de evidência e afirmar igualdade pede a hipótese invertida. Foi
+adotado o TOST sobre os postos sinalizados de Wilcoxon, com margem de $0{,}01$ em AE ou
+um ponto percentual de prevalência. Abaixo desse valor a diferença não altera decisão
+alguma tomada a partir da estimativa. Como medidas do mesmo conjunto não são
+independentes, a unidade de análise é o conjunto de dados, com os quatro tamanhos de
+amostra reunidos pela média. A diferença central vem do estimador de Hodges-Lehmann e o
+intervalo de confiança de 95\% sai do próprio teste. Por fim, a multiplicidade dos 39
+pares é corrigida por Holm.
 
 O resultado é apresentado na Figura~\ref{fig:res_q1}, com um método contra uma
-biblioteca de referência em cada linha. A diferença mediana de AE entre a
-\texttt{mlquantify} e a referência é indicada pelo ponto, o intervalo de confiança pela
-barra e a margem pelas linhas tracejadas. O intervalo contido na faixa é identificado
-pelo marcador cheio, situação em que a compatibilidade está demonstrada. A biblioteca é
-distinguida pela forma do marcador.
+biblioteca de referência em cada linha. O ponto indica a diferença mediana de AE entre a
+\texttt{mlquantify} e a referência, a barra indica o intervalo de confiança e as linhas
+tracejadas marcam a margem. A forma do marcador distingue a biblioteca. Quando o
+intervalo cabe na faixa o marcador aparece cheio, e a compatibilidade está demonstrada.
 
 \begin{figure}[htb]
     \centering
@@ -30,43 +29,44 @@ distinguida pela forma do marcador.
     {\footnotesize Fonte: elaborado pelo autor.}
 \end{figure}
 
-Em 38 dos 39 pares o intervalo cabe na margem. Em 28 deles não há diferença detectável,
-e nos 10 restantes existe diferença sistemática de magnitude irrelevante, sempre abaixo
-de um ponto percentual. A maior delas alcança $0{,}0051$ em AE.
+Em 38 dos 39 pares o intervalo cabe na margem. Desses, 28 não apresentam diferença
+detectável e os 10 restantes mostram diferença sistemática de magnitude irrelevante,
+sempre abaixo de um ponto percentual. A maior delas alcança $0{,}0051$ em AE.
 
 O único par fora da margem é o MS2 contra a \verb'QuaPy', com diferença mediana de
 $-0{,}0078$ e intervalo de $[-0{,}0109,\,-0{,}0045]$, favorável à biblioteca proposta. A
-divergência vem do conjunto de limiares candidatos. A \verb'QuaPy' percorre todos os
-escores distintos obtidos na validação cruzada, enquanto a implementação proposta
-percorre uma grade fixa de 101 pontos, o que desloca a mediana das estimativas tomadas
-sobre esses candidatos.
+divergência vem do conjunto de limiares candidatos, já que a \verb'QuaPy' percorre todos
+os escores distintos obtidos na validação cruzada e a implementação proposta usa uma
+grade fixa de 101 pontos, o que desloca a mediana das estimativas tomadas sobre esses
+candidatos.
 
-Em RAE a diferença mediana entre os pares fica em $0{,}0001$ e alcança $0{,}0329$ no
-extremo, com intervalo contendo zero em 20 dos 39 pares. A margem de $0{,}01$ está na
-unidade da prevalência e vale apenas para o AE, razão pela qual o RAE é reportado sem
-veredito de equivalência.
+Em RAE a diferença mediana fica em $0{,}0001$ e alcança $0{,}0329$ no extremo, com
+intervalo contendo zero em 20 dos 39 pares. Porém, a margem de $0{,}01$ está na unidade
+da prevalência e vale apenas para o AE, razão pela qual o RAE é reportado sem veredito de
+equivalência.
 
-A equivalência em erro fica sustentada por esse resultado. Nas implementações da
-biblioteca proposta, o comportamento das referências é reproduzido dentro de uma margem
-sem consequência prática, e a única exceção favorece a biblioteca.
+Esse resultado sustenta a equivalência em erro. As implementações da \texttt{mlquantify}
+reproduzem o comportamento das referências dentro de uma margem sem consequência prática,
+e a única exceção favorece a proposta.
 
 
 \section{\texorpdfstring{\textbf{Q2}}{Q2} - Qual é o custo em tempo e memória da biblioteca proposta no treinamento e na estimação quando comparada com as demais bibliotecas?}
 \label{subsec:res_q2}
 
 O custo é comparado pela razão entre as medidas, tratada em logaritmo de base 2, única
-escala em que o dobro e a metade ficam à mesma distância da igualdade. O ponto é a razão
-mediana entre conjuntos pelo estimador de Hodges-Lehmann e a barra é o intervalo de 95\%,
-na mesma gramática da figura anterior. O tempo soma as fases de treinamento e estimação,
-que são trabalho sequencial. A memória toma o maior pico entre as duas, uma vez que o
+escala em que o dobro e a metade ficam à mesma distância da igualdade. Como na figura
+anterior, o ponto é a razão mediana entre conjuntos pelo estimador de Hodges-Lehmann e a
+barra é o intervalo de 95\%. O tempo soma as fases de treinamento e estimação, uma vez
+que são trabalho sequencial. Já a memória toma o maior pico entre as duas, pois o
 processo libera a primeira fase antes de iniciar a segunda.
 
-O tempo é apresentado na Figura~\ref{fig:res_q2_tempo}. A biblioteca proposta é mais barata com
-intervalo inteiro abaixo de 1 em 18 dos 39 pares e mais cara em 14, com razão mediana de
-$0{,}967$. A vantagem se concentra nos métodos de casamento de distribuição multiclasse,
-com razão de $0{,}016$ no GHDx e de $0{,}023$ no GACC, ambos contra a \verb'qunfold'. A desvantagem aparece na contagem ajustada da
-\verb'QuantificationLib', com $3{,}4$ no PWKAC e no PACC e $3{,}0$ no FM, onde
-aquela biblioteca resolve o ajuste em forma fechada e a proposta recorre a otimização com
+O tempo é apresentado na Figura~\ref{fig:res_q2_tempo}. A biblioteca proposta é mais
+barata com intervalo inteiro abaixo de 1 em 18 dos 39 pares e mais cara em 14, com razão
+mediana de $0{,}967$. A vantagem se concentra nos métodos de casamento de distribuição
+multiclasse, com razão de $0{,}016$ no GHDx e de $0{,}023$ no GACC, ambos contra a
+\verb'qunfold'. Já a desvantagem aparece na contagem ajustada da
+\verb'QuantificationLib', com $3{,}4$ no PWKAC e no PACC e $3{,}0$ no FM, pois aquela
+biblioteca resolve o ajuste em forma fechada enquanto a proposta recorre a otimização com
 restrição a cada estimativa.
 
 \begin{figure}[htb]
@@ -91,12 +91,11 @@ KDEyCS contra a \verb'QuaPy'.
 \end{figure}
 
 As fases são separadas na Tabela~\ref{tab:res_q2_fases}, em que se observam
-comportamentos distintos. Contra
-a \verb'QuaPy' e a \verb'QuantificationLib' o treinamento da biblioteca proposta é
-ligeiramente mais barato e a estimação é ligeiramente mais cara, com razões próximas da
-igualdade nas quatro medidas. Contra a \verb'qunfold' a diferença muda de ordem de
-grandeza, com $0{,}017$ no tempo de estimação, efeito do otimizador numérico empregado
-por aquela biblioteca em cada estimativa.
+comportamentos distintos. Contra a \verb'QuaPy' e a \verb'QuantificationLib' as quatro
+medidas ficam próximas da igualdade, com vantagem no treinamento e perda na estimação,
+ambas pequenas. Já contra a \verb'qunfold' a diferença muda de ordem de grandeza e chega
+a $0{,}017$ no tempo de estimação, efeito do otimizador numérico que aquela biblioteca
+emprega em cada estimativa.
 
 \begin{table}[htb]
     \centering
@@ -120,8 +119,8 @@ por aquela biblioteca em cada estimativa.
 \end{table}
 
 O custo da biblioteca proposta fica na mesma ordem de grandeza das referências, com
-vantagem clara em memória e equilíbrio em tempo. As perdas se concentram em métodos cuja
-formulação admite solução fechada, e os ganhos nos métodos multiclasse de casamento de
+vantagem clara em memória e equilíbrio em tempo. As perdas se concentram nos métodos cuja
+formulação admite solução fechada e os ganhos nos multiclasse de casamento de
 distribuição.
 
 
@@ -135,10 +134,10 @@ multiclasse automática e composição explícita de representação, perda e so
 
 As duas questões formuladas foram respondidas pela avaliação experimental. Em erro, o
 intervalo de confiança ficou dentro da margem de um ponto percentual de prevalência em
-38 dos 39 pares de método e biblioteca, e o único par fora dela favorece a biblioteca
-proposta. Em custo, a razão mediana ficou em $0{,}967$ no tempo e em $0{,}816$ na
-memória, com ganhos nos métodos multiclasse de casamento de distribuição e perdas nos
-métodos de contagem ajustada que a \verb'QuantificationLib' resolve em forma fechada.
+38 dos 39 pares de método e biblioteca, e a única exceção favorece a biblioteca proposta.
+Em custo, a razão mediana ficou em $0{,}967$ no tempo e em $0{,}816$ na memória, com
+ganhos nos métodos multiclasse de casamento de distribuição e perdas nos de contagem
+ajustada que a \verb'QuantificationLib' resolve em forma fechada.
 
 No próximo capítulo, são discutidas as limitações do trabalho e as possibilidades de
 continuidade.
