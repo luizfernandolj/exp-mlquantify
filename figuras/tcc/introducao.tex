@@ -21,16 +21,16 @@ Uma vez que a classificação já atribui uma classe a cada registro, a saída m
 consiste em classificar os elementos do grupo e contar os rótulos atribuídos. Para tanto,
 esse procedimento supõe que os dados de treinamento e os dados sobre os quais o modelo é
 aplicado venham da mesma distribuição. Entretanto, a suposição falha justamente nas
-aplicações descritas, pois a proporção de infectados se
-altera ao longo de uma epidemia e a de comentários negativos se altera após uma mudança
-no produto.
+aplicações descritas, pois a proporção de infectados se altera ao longo de uma epidemia e
+a de comentários negativos se altera após uma mudança no produto. Quando isso ocorre, o
+classificador erra de forma sistemática na mesma direção, e os erros deixam de se
+compensar na contagem final. Portanto, a classificação não é suficiente para estimar a
+proporção procurada.
 
-Quando a proporção se desloca, o classificador erra de forma sistemática na mesma
-direção. Como os erros deixam de se compensar, a contagem resultante se afasta da
-proporção real. Em resposta a essa limitação, surge a quantificação, com métodos que
-estimam a proporção de cada classe de forma direta e corrigem os erros conhecidos do
-classificador \cite{forman2005}. Desde essa formulação inicial, a área acumulou dezenas
-de métodos ao longo das duas últimas décadas \cite{esuli2023}.
+A quantificação surge como resposta a essa limitação, com métodos que estimam a proporção
+de cada classe de forma direta e corrigem os erros conhecidos do classificador
+\cite{forman2005}. Desde essa formulação inicial, a área acumulou dezenas de métodos ao
+longo das duas últimas décadas \cite{esuli2023}.
 
 Na prática, a adoção desses métodos depende das ferramentas disponíveis. Em aprendizado
 de máquina, o \textit{scikit-learn} reúne os algoritmos clássicos sob um conjunto
