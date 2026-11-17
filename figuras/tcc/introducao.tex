@@ -8,45 +8,50 @@ como alternativa, com algoritmos que extraem padrões a partir de exemplos e os 
 dados ainda desconhecidos. Entre as tarefas estudadas na área, a classificação é uma das
 mais difundidas.
 
-Na classificação, um modelo é treinado sobre um conjunto de exemplos em que cada
-registro vem acompanhado de um rótulo, como a espécie de um inseto capturado ou o
-sentimento de um comentário publicado. A partir desses exemplos, o modelo aprende a
-associar os atributos observados a cada rótulo e passa a atribuir rótulos a registros
-que ainda não viu. A qualidade do resultado costuma ser medida pelo acerto dessas
-atribuições individuais, e é sobre essa medida que a maior parte dos algoritmos é
+Na classificação, um modelo é treinado sobre registros já rotulados, como insetos de
+espécie conhecida ou comentários de sentimento conhecido. Durante o treinamento, ele
+aprende a associar os atributos observados a cada classe e passa a atribuir uma delas
+aos registros que ainda não viu. A qualidade do resultado costuma ser medida pelo acerto
+individual dessas atribuições, e é sobre essa medida que a maior parte dos algoritmos é
 otimizada.
 
 Contudo, diversas aplicações formulam a pergunta sobre o conjunto inteiro. Um órgão de
-saúde que acompanha uma epidemia precisa estimar a fração da população infectada para
-dimensionar leitos e campanhas, de modo que o diagnóstico de cada paciente funciona como
-etapa intermediária. De forma semelhante, uma empresa que monitora a recepção de um
-produto precisa conhecer a porcentagem de menções negativas antes de decidir sobre uma
-mudança, sem que a leitura de cada comentário seja necessária. Em situações como essas,
-o resultado procurado é a proporção de cada classe dentro do grupo observado.
+saúde que acompanha uma epidemia precisa saber qual fração da população está infectada.
+Uma empresa que monitora a recepção de um produto precisa saber qual porcentagem dos
+comentários é negativa. Em casos assim, o resultado procurado é a proporção de cada
+classe dentro do grupo observado.
 
 A maneira mais direta de obter essa proporção consiste em classificar cada elemento do
-grupo e contar os rótulos atribuídos. Esse procedimento depende de uma suposição presente no
-treinamento de qualquer classificador. Os dados usados no aprendizado e os dados
-encontrados em uso devem vir da mesma distribuição, hipótese conhecida como
-independente e identicamente distribuída. Ocorre que as aplicações descritas costumam
-violar essa suposição, uma vez que a proporção de infectados se altera ao longo de uma
-epidemia e a de menções negativas se altera após uma atualização do produto.
+grupo e contar os rótulos atribuídos. Esse procedimento depende de uma suposição
+presente no treinamento de qualquer classificador. Os dados de treinamento e os dados
+sobre os quais o modelo é aplicado devem vir da mesma distribuição, hipótese conhecida
+como independente e identicamente distribuída. Nas aplicações descritas, tal suposição
+costuma ser violada, uma vez que a proporção de infectados se altera ao longo de uma
+epidemia e a de comentários negativos se altera após uma mudança no produto.
 
-Quando a proporção se desloca dessa maneira, o classificador passa a errar de forma
-sistemática na mesma direção e os erros deixam de se compensar na contagem. Como
-resultado, a estimativa obtida carrega um viés que aumenta conforme o
-deslocamento se acentua. Em resposta
-a essa limitação surgiu a quantificação, cujos métodos estimam a proporção de cada
-classe de forma direta e aplicam correções baseadas nos erros conhecidos do
-classificador \cite{forman2005}. Desde a formulação inicial da tarefa, a área acumulou
-dezenas de métodos \cite{esuli2023}.
+Quando a proporção se desloca, o classificador passa a errar de forma sistemática na
+mesma direção e os erros deixam de se compensar na contagem. Em resposta a essa
+limitação surgiu a quantificação, cujos métodos estimam a proporção de cada classe de
+forma direta e aplicam correções baseadas nos erros conhecidos do classificador
+\cite{forman2005}. Desde a formulação inicial da tarefa, a área acumulou dezenas de
+métodos \cite{esuli2023}.
 
-As implementações desses métodos em Python se distribuem por bibliotecas independentes,
-e cada uma adota convenções próprias para os dados, para a construção dos quantificadores
-e para a avaliação. Como consequência, reproduzir um experimento em outra biblioteca
-exige reescrever o código que o executa. Soma-se a isso o fato de que nenhuma delas
-cobre o conjunto de métodos propostos na literatura, de modo que a escolha da biblioteca
-acaba por restringir os métodos ao alcance de quem a utiliza.
+O avanço do aprendizado de máquina veio acompanhado de bibliotecas que padronizam o uso
+dos algoritmos. Em Python, o \textit{scikit-learn} reúne os métodos clássicos sob uma
+interface comum \cite{pedregosa2011}, enquanto o TensorFlow \cite{abadi2016} e o PyTorch
+\cite{paszke2019} ocupam esse papel no aprendizado profundo. Com essas ferramentas,
+trocar de algoritmo exige a alteração de poucas linhas, e um experimento escrito para
+uma delas se transfere com facilidade.
+
+A quantificação não dispõe de ferramenta equivalente. As implementações disponíveis em
+Python se distribuem pela \verb'QuaPy' \cite{moreo2021quapy}, pela
+\verb'QuantificationLib' \cite{castano2024quantificationlib} e pela \verb'qunfold'
+\cite{bunse2024qunfold}, e cada uma adota convenções próprias para os dados, para a
+construção dos quantificadores e para a avaliação. Como consequência, reproduzir um
+experimento em outra biblioteca exige reescrever o código que o executa. Soma-se a isso
+o fato de que nenhuma delas cobre o conjunto de métodos propostos na literatura, de modo
+que a escolha da biblioteca acaba por restringir os métodos ao alcance de quem a
+utiliza.
 
 Esse cenário motiva duas perguntas. A primeira diz respeito à possibilidade de reunir os
 métodos sob uma interface única, com a mesma convenção de uso da biblioteca de
@@ -61,8 +66,8 @@ literatura sob uma interface única e avaliar a biblioteca frente às existentes
 alcançá-lo, foi definida uma arquitetura capaz de acomodar métodos de exigências
 distintas, foram implementados os métodos, os protocolos e as métricas, foi reunida uma
 coleção de conjuntos de dados tabulares e foram medidos o erro e o custo computacional
-da biblioteca em relação à \verb'QuaPy', à \verb'QuantificationLib' e à \verb'qunfold',
-nos métodos que cada uma implementa.
+da biblioteca em relação às três ferramentas citadas, nos métodos que cada uma
+implementa.
 
 O restante deste texto está organizado em cinco capítulos. No
 Capítulo~\ref{cap:aprendizado_de_maquina}, são apresentados os conceitos de aprendizado
