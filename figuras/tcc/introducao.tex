@@ -1,12 +1,14 @@
 \chapter{Introdução}
 \label{cap:introducao}
 
-O volume de dados gerado e armazenado cresce de forma acelerada com o avanço da
-tecnologia, e a análise manual desse material deixou de ser viável em boa parte das
-aplicações \cite{faceli2021}. O aprendizado de máquina responde a essa demanda com
-algoritmos que aprendem padrões a partir de exemplos. Entre as tarefas existentes, a
-classificação é a mais utilizada, e um modelo de classificação é treinado sobre
-registros já rotulados para depois atribuir uma classe aos registros que ainda não viu.
+Com o avanço da tecnologia, um grande volume de dados é gerado e armazenado de forma
+acelerada e contínua. Esses dados guardam informações sobre pessoas, processos e
+sistemas. Entretanto, a análise manual desse material é custosa e, em boa parte das
+aplicações, inviável \cite{faceli2021}. Com isso, o aprendizado de máquina ganhou
+espaço, com algoritmos que aprendem padrões a partir de exemplos. Entre as tarefas
+existentes, a classificação é a mais utilizada, e um modelo de classificação é treinado
+sobre registros já rotulados para depois atribuir uma classe aos registros que ainda não
+viu.
 
 Contudo, diversas aplicações perguntam sobre o conjunto inteiro. Um órgão de saúde que
 acompanha uma epidemia precisa saber qual fração da população está infectada. Uma
@@ -16,34 +18,35 @@ classe dentro do grupo.
 
 A saída mais direta consiste em classificar cada elemento e contar os rótulos
 atribuídos. Esse procedimento supõe que os dados de treinamento e os dados sobre os
-quais o modelo é aplicado venham da mesma distribuição. A proporção de infectados muda
-ao longo de uma epidemia e a de comentários negativos muda após uma alteração no
-produto, de modo que a suposição falha justamente nessas aplicações.
+quais o modelo é aplicado venham da mesma distribuição. Entretanto, a suposição falha
+justamente nessas aplicações. A proporção de infectados muda ao longo de uma epidemia, e
+a de comentários negativos muda após uma alteração no produto.
 
 Quando a proporção se desloca, o classificador erra de forma sistemática na mesma
-direção e os erros deixam de se compensar na contagem. A quantificação surge como
-resposta a essa limitação, com métodos que estimam a proporção de cada classe de forma
-direta e corrigem os erros conhecidos do classificador \cite{forman2005}. A partir dessa
-formulação inicial, a área acumulou dezenas de métodos ao longo das duas últimas décadas
-\cite{esuli2023}.
+direção. Com isso, os erros deixam de se compensar na contagem. A quantificação surge
+como resposta a essa limitação, com métodos que estimam a proporção de cada classe de
+forma direta e corrigem os erros conhecidos do classificador \cite{forman2005}. A partir
+dessa formulação inicial, a área acumulou dezenas de métodos ao longo das duas últimas
+décadas \cite{esuli2023}.
 
-A adoção desses métodos na prática depende das ferramentas disponíveis. Em aprendizado
+Na prática, a adoção desses métodos depende das ferramentas disponíveis. Em aprendizado
 de máquina, o \textit{scikit-learn} reúne os algoritmos clássicos sob um conjunto
-pequeno de comandos, que se repetem de um método para outro e tornam o primeiro contato
-simples \cite{pedregosa2011}. O TensorFlow \cite{abadi2016} e o PyTorch
+pequeno de comandos \cite{pedregosa2011}. Esses comandos se repetem de um método para
+outro, o que torna o primeiro contato simples. O TensorFlow \cite{abadi2016} e o PyTorch
 \cite{paszke2019} cumprem papel semelhante no aprendizado profundo. Com essas
 ferramentas, trocar de algoritmo custa poucas linhas de código.
 
 A quantificação não dispõe de ferramenta equivalente. As implementações disponíveis em
-Python se espalham por pacotes independentes, cada um com convenções próprias para os
-dados, para a construção dos quantificadores e para a avaliação. Reproduzir um
-experimento em outro pacote exige reescrever o código que o executa, e nenhum deles
-cobre o conjunto de métodos propostos na literatura.
+Python se espalham por pacotes independentes. Cada um deles adota convenções próprias
+para os dados, para a construção dos quantificadores e para a avaliação. Dessa forma,
+reproduzir um experimento em outro pacote exige reescrever o código que o executa. Além
+disso, nenhum deles cobre o conjunto de métodos propostos na literatura.
 
-Este trabalho propõe a \texttt{mlquantify}, uma biblioteca de quantificação construída
-sobre a interface do \textit{scikit-learn}, com os métodos, os protocolos de avaliação e
-as métricas de erro da área. A biblioteca é comparada experimentalmente com as
-alternativas disponíveis, quanto ao erro de estimativa e ao custo computacional.
+Diante disso, este trabalho propõe a \texttt{mlquantify}, uma biblioteca de
+quantificação construída sobre a interface do \textit{scikit-learn}. Nela estão reunidos
+os métodos, os protocolos de avaliação e as métricas de erro da área. A biblioteca é
+comparada experimentalmente com as alternativas disponíveis, quanto ao erro de
+estimativa e ao custo computacional.
 
 \section*{Objetivo Geral}
 
