@@ -1,48 +1,52 @@
 \chapter{Introdução}
 \label{cap:introducao}
 
-Com o avanço da tecnologia, um grande volume de dados é gerado e armazenado de forma
-acelerada e contínua. Esses dados guardam informações sobre pessoas, processos e
-sistemas. Entretanto, a análise manual desse material é custosa e, em boa parte das
+Com o avanço da tecnologia, a geração e o armazenamento de dados ocorrem em ritmo
+acelerado e de forma contínua. Desse material pode ser extraído conhecimento capaz de
+orientar decisões. Entretanto, a análise manual é custosa e, em boa parte das
 aplicações, inviável \cite{faceli2021}. Com isso, o aprendizado de máquina ganhou
-espaço, com algoritmos que aprendem padrões a partir de exemplos. Entre as tarefas
-existentes, a classificação é a mais utilizada, e um modelo de classificação é treinado
-sobre registros já rotulados para depois atribuir uma classe aos registros que ainda não
-viu.
+destaque na extração desse conhecimento, com algoritmos que aprendem padrões a partir de
+exemplos. Esses algoritmos atendem a tarefas como regressão, agrupamento e
+classificação. Entre elas, a classificação é a mais utilizada, e um modelo de
+classificação é treinado sobre registros já rotulados para depois atribuir uma classe
+aos registros que ainda não viu.
 
-Contudo, diversas aplicações perguntam sobre o conjunto inteiro. Um órgão de saúde que
-acompanha uma epidemia precisa saber qual fração da população está infectada. Uma
-empresa que monitora a recepção de um produto precisa saber qual porcentagem dos
-comentários é negativa. Em casos assim, o resultado procurado é a proporção de cada
-classe dentro do grupo.
+Contudo, parte das aplicações tem como alvo o conhecimento sobre uma população inteira.
+Um órgão de saúde que acompanha uma epidemia precisa conhecer a fração da população
+infectada. Uma empresa que monitora a recepção de um produto tem interesse na
+porcentagem de comentários negativos. Nesses cenários, o resultado procurado é a
+proporção de cada classe dentro do grupo.
 
-A saída mais direta consiste em classificar cada elemento e contar os rótulos
-atribuídos. Esse procedimento supõe que os dados de treinamento e os dados sobre os
-quais o modelo é aplicado venham da mesma distribuição. Entretanto, a suposição falha
-justamente nessas aplicações. A proporção de infectados muda ao longo de uma epidemia, e
-a de comentários negativos muda após uma alteração no produto.
+Uma vez que a classificação já atribui uma classe a cada registro, a saída mais direta
+consiste em classificar os elementos do grupo e contar os rótulos atribuídos. Esse
+procedimento supõe que os dados de treinamento e os dados sobre os quais o modelo é
+aplicado venham da mesma distribuição. Entretanto, a suposição falha justamente nas
+aplicações descritas. A proporção de infectados se altera ao longo de uma epidemia, e a
+de comentários negativos se altera após uma mudança no produto.
 
 Quando a proporção se desloca, o classificador erra de forma sistemática na mesma
-direção. Com isso, os erros deixam de se compensar na contagem. A quantificação surge
-como resposta a essa limitação, com métodos que estimam a proporção de cada classe de
-forma direta e corrigem os erros conhecidos do classificador \cite{forman2005}. A partir
-dessa formulação inicial, a área acumulou dezenas de métodos ao longo das duas últimas
-décadas \cite{esuli2023}.
+direção. Como os erros deixam de se compensar, a contagem resultante se afasta da
+proporção real. A quantificação surge como resposta a essa limitação, com métodos que
+estimam a proporção de cada classe de forma direta e corrigem os erros conhecidos do
+classificador \cite{forman2005}. A partir dessa formulação inicial, a área acumulou
+dezenas de métodos ao longo das duas últimas décadas \cite{esuli2023}.
 
-Na prática, a adoção desses métodos depende das ferramentas disponíveis. Em aprendizado
+A adoção desses métodos na prática depende das ferramentas disponíveis. Em aprendizado
 de máquina, o \textit{scikit-learn} reúne os algoritmos clássicos sob um conjunto
-pequeno de comandos \cite{pedregosa2011}. Esses comandos se repetem de um método para
-outro, o que torna o primeiro contato simples. O TensorFlow \cite{abadi2016} e o PyTorch
-\cite{paszke2019} cumprem papel semelhante no aprendizado profundo. Com essas
-ferramentas, trocar de algoritmo custa poucas linhas de código.
+reduzido de comandos \cite{pedregosa2011}. Esses comandos se repetem de um método para
+outro, o que diminui o esforço exigido de quem utiliza a ferramenta. O TensorFlow
+\cite{abadi2016} e o PyTorch \cite{paszke2019} cumprem papel semelhante no aprendizado
+profundo. Com essas bibliotecas, a substituição de um algoritmo por outro exige poucas
+linhas de código.
 
 A quantificação não dispõe de ferramenta equivalente. As implementações disponíveis em
-Python se espalham por pacotes independentes. Cada um deles adota convenções próprias
-para os dados, para a construção dos quantificadores e para a avaliação. Dessa forma,
-reproduzir um experimento em outro pacote exige reescrever o código que o executa. Além
-disso, nenhum deles cobre o conjunto de métodos propostos na literatura.
+Python se distribuem por pacotes independentes. Cada um deles adota convenções próprias
+para os dados, para a construção dos quantificadores e para a avaliação. Dessa forma, a
+reprodução de um experimento em outro pacote exige a reescrita do código que o executa.
+Soma-se a isso a cobertura parcial, uma vez que nenhum deles implementa o conjunto de
+métodos propostos na literatura.
 
-Diante disso, este trabalho propõe a \texttt{mlquantify}, uma biblioteca de
+Diante desse cenário, este trabalho propõe a \texttt{mlquantify}, uma biblioteca de
 quantificação construída sobre a interface do \textit{scikit-learn}. Nela estão reunidos
 os métodos, os protocolos de avaliação e as métricas de erro da área. A biblioteca é
 comparada experimentalmente com as alternativas disponíveis, quanto ao erro de
