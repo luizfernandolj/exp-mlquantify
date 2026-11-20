@@ -380,10 +380,29 @@ def _unavailable(ctx: Ctx):
     raise NotImplementedError("metodo ainda nao disponivel nesta versao da biblioteca")
 
 
-for _name in ("SVM(Q)", "SVM(KLD)", "SVM(NKLD)", "SVM(AE)", "SVM(RAE)"):
-    register(MethodSpec(_name, "minimizacao explicita da perda (ELM)", "mlquantify",
-                        "-", _unavailable, group="elm", available=False,
-                        unavailable_reason="nao publicado na mlquantify 0.5.1 (outro branch)"))
+def _tem_elm() -> bool:
+    import importlib.util
+
+    try:
+        return importlib.util.find_spec("mlquantify.elm") is not None
+    except ModuleNotFoundError:
+        return False
+
+
+# A familia ELM so existe na branch mlquantify-Refactoring. No ambiente da
+# 0.5.1 continua indisponivel; no ambiente da branch (.venv-refactoring)
+# entra com a classe real. Padroes: C=1, tol=0,1 e um-contra-todos interno,
+# os mesmos do newELM da QuaPy (svm_perf com -c 1 e epsilon 0,1).
+for _name, _cls in (("SVM(Q)", "SVMQ"), ("SVM(KLD)", "SVMKLD"), ("SVM(NKLD)", "SVMNKLD"),
+                    ("SVM(AE)", "SVMAE"), ("SVM(RAE)", "SVMRAE")):
+    if _tem_elm():
+        _mlq(_name, "minimizacao explicita da perda (ELM)", "elm", _cls,
+             needs_classifier=False, group="elm",
+             notes="branch mlquantify-Refactoring; SVM de perda multivariada em Python")
+    else:
+        register(MethodSpec(_name, "minimizacao explicita da perda (ELM)", "mlquantify",
+                            "-", _unavailable, group="elm", available=False,
+                            unavailable_reason="nao publicado na mlquantify 0.5.1 (outro branch)"))
 for _name in ("QuaNet", "HistNetQ", "GMNet"):
     register(MethodSpec(_name, "neurais", "mlquantify", "-", _unavailable,
                         group="neural", available=False,
@@ -493,12 +512,20 @@ def _svmperf(loss):
     def build(ctx: Ctx):
         import os
 
-        from quapy.method.aggregative import SVMperf
+        from quapy.method.aggregative import newELM
 
         home = os.environ.get("SVMPERF_HOME")
         if not home:
             raise RuntimeError("SVMPERF_HOME nao definido; binario do SVM-perf ausente")
-        return SVMperf(home, loss=loss)
+        # newELM monta o CC sobre o SVMperf; o SVMperf sozinho e um
+        # classificador, nao um quantificador. C=1 e o padrao do newELM e da
+        # ELM da mlquantify.
+        q = newELM(home, loss=loss)
+        if ctx.is_multiclass:
+            from quapy.method.base import newOneVsAll
+
+            return newOneVsAll(q)  # MANUAL: decomposicao um-contra-todos
+        return q
 
     return build
 
@@ -963,8 +990,9 @@ _qunfold("EMQ", "verossimilhanca", "ExpectationMaximizer", needs_cv=False,
          notes="EM de Saerens et al. (2002), o mesmo algoritmo do EMQ das "
                "outras tres: laco iterativo, sem otimizador generico e sem "
                "ponto de partida aleatorio. max_iter alinhado em 1000; a "
-               "tolerancia fica em 1e-6 porque o criterio dela e a norma L2 "
-               "e nao o erro absoluto medio das outras")
+               "tolerancia fica em 1e-4, o valor das outras, embora o criterio "
+               "dela seja a norma L2 e nao o erro absoluto medio -- ver a "
+               "ressalva no comentario acima e no README")
 # Nome canonico proprio, e por isso sem par na mlquantify: e um metodo
 # diferente, nao outra implementacao do EMQ. A mlquantify tem o arcabouco
 # correspondente -- o ``LikelihoodComposeQuantifier`` com a
