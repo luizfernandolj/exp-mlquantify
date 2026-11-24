@@ -28,6 +28,8 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
+import recorte_analise
+
 MINHA = "mlquantify"
 
 #: (coluna, rotulo curto, rotulo longo). Em todas, menor e melhor.
@@ -55,6 +57,7 @@ TOL_EMPATE = 1e-3
 # ---------------------------------------------------------------------------
 
 def carregar(run_dir: Path) -> pd.DataFrame:
+    """Le o summary da execucao, ja sem os conjuntos fora do recorte."""
     caminho = run_dir / "summary.csv"
     if not caminho.exists():
         raise SystemExit(f"nao achei {caminho}")
@@ -62,7 +65,14 @@ def carregar(run_dir: Path) -> pd.DataFrame:
     from expq.aggregate import expand_aliases
 
     df = expand_aliases(df)
-    return df[df["status"] == "ok"].copy()
+    ok = df[df["status"] == "ok"].copy()
+    fora = recorte_analise.excluidos()
+    n = int(ok["dataset_id"].isin(fora).sum())
+    if n:
+        ok = ok[~ok["dataset_id"].isin(fora)].copy()
+        print(f"recorte do capitulo: {ok['dataset_id'].nunique()} conjuntos"
+              f" ({recorte_analise.resumo()}), {n} linhas de fora")
+    return ok
 
 
 def parear(ok: pd.DataFrame) -> pd.DataFrame:

@@ -62,9 +62,10 @@ tambem, basta acrescentar `deitado=True` na funcao `variantes()` do
 `painel_bibliotecas.py`. Para nao gerar nenhuma delas, `--sem-variantes`.
 
 Em **`tcc/`** estao as tres figuras do capitulo de resultados da
-monografia, que usam **132 conjuntos de dados** em vez de 142. O recorte
-segue os criterios de selecao descritos no texto e o README de la explica a
-diferenca. O painel segue com os 142, que e a execucao como ela foi.
+monografia, que usam **110 conjuntos de dados** em vez de 142. O recorte
+segue os criterios de selecao descritos no texto, sai das duas listas do
+`recorte_analise.py` e o README de la explica a diferenca. O painel passou
+a aplicar o mesmo recorte, para que os dois nao divirjam.
 
 Em **`mse/`** estao as duas figuras que dependem da medida de erro -- a 01 e
 a 02 -- refeitas em MSE, com a margem de equivalencia reescolhida. O README

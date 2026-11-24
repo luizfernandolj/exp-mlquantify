@@ -1,8 +1,11 @@
-"""Gera o apendice com a tabela dos 132 conjuntos selecionados."""
+"""Gera o apendice com a tabela dos 110 conjuntos selecionados."""
 import csv
 import io
+import sys
 
 BASE = "C:/Users/luiz_/OneDrive/Codigos/exp-mlquantify/"
+sys.path.insert(0, BASE)
+import recorte_analise  # noqa: E402  precisa do BASE no sys.path
 SAIDA = BASE + "figuras/tcc/apendice-conjuntos.tex"
 
 #: Marca da coluna de multiclasse, com simbolo em vez de letra.
@@ -26,7 +29,7 @@ CABECALHO = r"""%\renewcommand{\appendixname}{Anexo} %trocar Apendice por Anexo
 \chapter{Conjuntos de Dados Utilizados}
 \label{ap:conjuntos}
 
-Os 132 conjuntos de dados que restaram após os critérios de seleção da
+Os 110 conjuntos de dados que restaram após os critérios de seleção da
 Seção~\ref{subsec:etapa_dados} são listados na Tabela~\ref{tab:ap_conjuntos}. De cada um
 são informados o número de atributos, o número de instâncias, o número de classes, a
 razão de desbalanceamento e a indicação de problema multiclasse.
@@ -76,8 +79,7 @@ def escapar(nome):
     return nome.replace("_", r"\_").replace("&", r"\&").replace("%", r"\%")
 
 
-fora = {l.strip() for l in io.open(BASE + "descricao/conjuntos_fora_do_criterio.txt",
-                                   encoding="utf-8") if l.strip()}
+fora = recorte_analise.excluidos()
 linhas = list(csv.DictReader(io.open(BASE + "descricao/datasets_selecionados.csv",
                                      encoding="utf-8")))
 sel = [l for l in linhas if l["dataset_id"] not in fora]

@@ -56,6 +56,11 @@ criterios de selecao da Secao 4.3.3, em sequencia:
 | duplicatas | copias do mesmo conjunto |
 | classes raras | classe minoritaria com menos de 30 instancias |
 
+Esse corte de classe rara e absoluto. O recorte do capitulo de resultados
+usa o criterio relativo da Etapa 3 -- minoria com ao menos 10% das linhas
+--, aplicado na analise pelas listas do `recorte_analise.py`, e nao aqui,
+para nao renumerar o `indice` de `datasets_selecionados.csv`.
+
 Gera tres arquivos em `descricao/`:
 
 - `catalogo_experimentos.csv` — todos os arquivos, com os atributos medidos

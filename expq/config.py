@@ -73,6 +73,8 @@ class Config:
     max_rows: int | None = None  # subamostra conjuntos gigantes (None = sem limite)
 
     # --- criterios de selecao (Secao 4.3.3) ---
+    # piso absoluto da classe rara; o criterio relativo do capitulo de
+    # resultados (minoria com 10% das linhas) esta em recorte_analise.py
     min_minority: int = 30
     duplicate_key: str = "content"  # "content" | "shape_dist"
 

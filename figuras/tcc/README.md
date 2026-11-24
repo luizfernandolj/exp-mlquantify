@@ -17,34 +17,43 @@ python figuras/tcc/gerar.py
 | `conclusoes.tex` | o capítulo de conclusões e trabalhos futuros |
 | `resumo.tex` | o resumo e as palavras-chave |
 | `introducao.tex` | o capítulo de introdução |
-| `apendice-conjuntos.tex` | o apêndice com os 132 conjuntos, gerado por `gerar_apendice.py` |
+| `apendice-conjuntos.tex` | o apêndice com os 110 conjuntos, gerado por `gerar_apendice.py` |
 
 ## Por que os números diferem dos do painel
 
-**Estas figuras usam 132 conjuntos de dados e as da pasta de cima usam
-142.** A diferença é deliberada e vale só para a monografia.
+**Estas figuras usam 110 conjuntos de dados e a execução tem 142.** O
+recorte é o que a monografia define e sai de duas listas em `descricao/`,
+lidas pelo `recorte_analise.py`:
 
-O capítulo de método descreve um funil que parte de 176 arquivos e aplica
-quatro critérios de seleção, chegando a 132 conjuntos, com 108 binários e
-24 multiclasse. O catálogo que alimentou a execução parte de 202 arquivos,
-com as mesmas quatro regras e a mesma minoria mínima de 30, e chega a 142.
+| lista | o que sai | quantos |
+| --- | --- | --- |
+| `conjuntos_fora_do_criterio.txt` | passam de dez classes e entraram na coleção depois da seleção | 10 |
+| `conjuntos_minoria_abaixo_de_10.txt` | classe minoritária com menos de 10% das linhas | 22 |
 
-A diferença está na coleção e não nos critérios. Os 26 arquivos a mais
-renderam 10 conjuntos selecionados, todos multiclasse, o que explica os 34
-multiclasse da execução contra os 24 do texto. São eles dois do Kaggle,
-seis do OpenML (o `amazon-commerce-reviews` e cinco variantes dele), o
-`Walking.csv` e o `letter.csv`. A lista está em
-`descricao/conjuntos_fora_do_criterio.txt` e o `gerar.py` a exclui.
+A primeira lista é de coleção e não de critério. Os 26 arquivos a mais
+renderam 10 conjuntos selecionados, todos multiclasse: dois do Kaggle, seis
+do OpenML (o `amazon-commerce-reviews` e cinco variantes dele), o
+`Walking.csv` e o `letter.csv`.
 
-**O painel do experimento continua com os 142**, por decisão de quem
-conduz o estudo. Ele descreve a execução como ela foi, enquanto estas
-figuras descrevem o recorte que o texto define.
+A segunda é de critério. O catálogo corta classe rara por um piso absoluto
+de 30 instâncias, enquanto o texto define a minoria em 10% das linhas, e o
+corte relativo entra na análise, e não no `build_catalog.py`, para não
+renumerar o `indice` de `datasets_selecionados.csv`, que o `--range` e o
+`--shard` usam. Restam 97 binários e 13 multiclasse.
 
-Nenhuma conclusão depende disso. O erro mantém 38 dos 39 pares dentro da
-faixa nos dois recortes, com a mesma exceção. O que se move são as razões
-de custo, de 0,983 para 0,967 no tempo e de 0,800 para 0,816 na memória,
-além do PWKAC contra a `QuantificationLib`, que cai de 3,6 para 3,4 por
-sair os dois conjuntos de mais classes.
+O corte vale pelo nome do conjunto, de propósito: uma reagregação a partir
+de `parts/` reescreve o `summary.csv` e devolveria em silêncio o que o
+recorte já tinha tirado. As linhas dos 22 ficam guardadas em
+`summary_minoria_abaixo_de_10.csv`, ao lado do summary da execução.
+
+**O painel aplica o mesmo recorte**, no `carregar()` do
+`painel_bibliotecas.py`, para que os dois não divirjam. O MS2 contra a
+`QuaPy` é o único par sensível a ele: sem o corte de minoria o intervalo
+ficava dentro da margem por um fio, em $[-0{,}00996, -0{,}00379]$, e com os
+110 escapa dela por $0{,}0002$, em $[-0{,}01020, -0{,}00379]$. É a única
+exceção entre as 39 nos dois casos, uma vez pela borda de dentro e outra
+pela de fora.
+
 
 ## Outras diferenças em relação ao painel
 
